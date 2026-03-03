@@ -204,6 +204,7 @@ def _plot_grid(
     grid_mode: Literal['cm'],
     width_inches: float,
     height_inches: float,
+    grid_color: str = '#f4aaaa',
 ) -> None:
     """Draw a background grid on `ax` with lines spaced according to `grid_mode`.
 
@@ -218,6 +219,8 @@ def _plot_grid(
         Width of the plot area in inches (used to bound vertical grid lines).
     height_inches : float
         Height of the plot area in inches (used to bound horizontal grid lines).
+    grid_color : str, optional
+        Color of the grid lines, by default '#f4aaaa' (light ECG-paper red).
     """
     if grid_mode == 'inch':
         raise NotImplementedError("'inch' grid mode is not supported. Use 'cm' or None.")
@@ -225,7 +228,7 @@ def _plot_grid(
 
     minor_lw = 0.2
     major_lw = 0.6
-    color = '#f4aaaa'  # light ECG-paper red
+    color = grid_color
 
     xs = np.arange(0, width_inches + step * 0.5, step)
     for i, x in enumerate(xs):
