@@ -67,252 +67,148 @@ class TestNumpyToDataframeDefaults:
 
     def test_wrong_lead_count_raises(self):
         """Passing a 5-lead array without explicit names must raise AssertionError."""
-        ecg_data = np.ones((N_SAMPLES, 5))
         with pytest.raises(AssertionError):
-            _numpy_to_dataframe(ecg_data)
+            _numpy_to_dataframe(np.ones((N_SAMPLES, 5)))
 
     def test_mismatched_names_raises(self):
         """Passing lead_names of wrong length must raise AssertionError."""
-        ecg_data = np.ones((N_SAMPLES, 3))
         with pytest.raises(AssertionError):
-            _numpy_to_dataframe(ecg_data, ["I", "II"])
+            _numpy_to_dataframe(np.ones((N_SAMPLES, 3)), ["I", "II"])
 
 
 # ---------------------------------------------------------------------------
 # _segment_leads
 # ---------------------------------------------------------------------------
 
+SEGMENT_LEAD_GROUPS = [
+    ["I"],
+    ["I", "II"],
+    ["I", "AVR", "V6"],
+    ["I", "II", "III", "AVR"],
+    ["V1", "V2", "V3", "V4", "V5", "V6"],
+]
+
+
+@pytest.mark.parametrize("selected_leads", SEGMENT_LEAD_GROUPS)
+@pytest.mark.parametrize("disconnect", [True, False])
 class TestSegmentLeads:
-    """Segmentation of leads into a single concatenated vector."""
+    """Cartesian product: lead groups × disconnect flag."""
 
-    def test_single_lead_string(self):
-        """A string lead name is treated as a one-element list."""
-        df = _make_12lead_df()
-        signal, leads = _segment_leads(df, "II")
-        assert leads == ["II"]
-        assert signal.shape == (N_SAMPLES,)
-        np.testing.assert_array_equal(signal, LEAD_VALUE["II"])  # 2.0
-
-    def test_single_lead_list(self):
-        df = _make_12lead_df()
-        signal, leads = _segment_leads(df, ["V6"])
-        assert leads == ["V6"]
-        np.testing.assert_array_equal(signal, LEAD_VALUE["V6"])  # 12.0
-
-    def test_two_leads_segment_boundaries(self):
-        """First half → lead[0], second half → lead[1]."""
-        df = _make_12lead_df()
-        signal, leads = _segment_leads(df, ["I", "II"])
-        seg = N_SAMPLES // 2
-        np.testing.assert_array_equal(signal[:seg], LEAD_VALUE["I"])   # 1.0
-        np.testing.assert_array_equal(signal[seg:], LEAD_VALUE["II"])  # 2.0
-
-    def test_three_leads_segment_boundaries(self):
-        """Three equal segments, each from a different lead."""
-        df = _make_12lead_df()
-        signal, _ = _segment_leads(df, ["I", "AVR", "V6"])
-        seg = N_SAMPLES // 3
-        np.testing.assert_array_equal(signal[:seg],        LEAD_VALUE["I"])   # 1.0
-        np.testing.assert_array_equal(signal[seg:2 * seg], LEAD_VALUE["AVR"]) # 4.0
-        np.testing.assert_array_equal(signal[2 * seg:],    LEAD_VALUE["V6"])  # 12.0
-
-    def test_four_leads_segment_boundaries(self):
-        df = _make_12lead_df()
-        selected = ["I", "II", "III", "AVR"]
-        signal, _ = _segment_leads(df, selected)
-        seg = N_SAMPLES // 4
-        for i, lead in enumerate(selected):
-            np.testing.assert_array_equal(
-                signal[i * seg : (i + 1) * seg], LEAD_VALUE[lead]
-            )
-
-    def test_output_shape(self):
-        df = _make_12lead_df()
-        signal, _ = _segment_leads(df, ["V1", "V2", "V3", "V4", "V5", "V6"])
+    def test_output_shape(self, selected_leads, disconnect):
+        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
         assert signal.shape == (N_SAMPLES,)
 
-    def test_returned_leads_preserved(self):
-        df = _make_12lead_df()
-        selected = ["I", "II", "III"]
-        _, ret_leads = _segment_leads(df, selected)
-        assert ret_leads == selected
+    def test_returned_leads(self, selected_leads, disconnect):
+        _, ret_leads = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        assert ret_leads == selected_leads
+
+    def test_interior_segment_values(self, selected_leads, disconnect):
+        """All samples except the last in each segment equal the expected lead value."""
+        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        seg = N_SAMPLES // len(selected_leads)
+        for i, lead in enumerate(selected_leads):
+            np.testing.assert_array_equal(signal[i * seg : (i + 1) * seg - 1], LEAD_VALUE[lead])
+
+    def test_last_sample_per_segment(self, selected_leads, disconnect):
+        """Last sample of each segment is NaN iff disconnect_segments=True."""
+        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        seg = N_SAMPLES // len(selected_leads)
+        for i, lead in enumerate(selected_leads):
+            last = (i + 1) * seg - 1
+            if disconnect:
+                assert np.isnan(signal[last])
+            else:
+                assert signal[last] == LEAD_VALUE[lead]
+
+
+def test_segment_leads_string_input():
+    """A string lead name is treated as a one-element list."""
+    df = _make_12lead_df()
+    for lead in ["I", "II", "V5"]:
+        sig_str, leads_str = _segment_leads(df, lead, disconnect_segments=False)
+        sig_list, _ = _segment_leads(df, [lead], disconnect_segments=False)
+        assert leads_str == [lead]
+        np.testing.assert_array_equal(sig_str, sig_list)
 
 
 # ---------------------------------------------------------------------------
 # _apply_configuration
 # ---------------------------------------------------------------------------
 
-class TestApplyConfigurationTemplates:
-    """Apply every 1xL template (passed as a string key)."""
-
-    @pytest.mark.parametrize("template_key", ONE_ROW_TEMPLATES)
-    def test_1xL_returns_single_row(self, template_key):
-        leads = TEMPLATE_CONFIGURATIONS[template_key]
-        df = _numpy_to_dataframe(_make_ecg_array(leads), leads)
-        result = _apply_configuration(df, template_key)
-        assert len(result) == 1
-
-    @pytest.mark.parametrize("template_key", ONE_ROW_TEMPLATES)
-    def test_1xL_signal_shape(self, template_key):
-        leads = TEMPLATE_CONFIGURATIONS[template_key]
-        df = _numpy_to_dataframe(_make_ecg_array(leads), leads)
-        signal, _ = _apply_configuration(df, template_key)[0]
-        assert signal.shape == (N_SAMPLES,)
-
-    @pytest.mark.parametrize("template_key", ONE_ROW_TEMPLATES)
-    def test_1xL_lead_names(self, template_key):
-        leads = TEMPLATE_CONFIGURATIONS[template_key]
-        df = _numpy_to_dataframe(_make_ecg_array(leads), leads)
-        _, ret_leads = _apply_configuration(df, template_key)[0]
-        assert ret_leads == leads
-
-    def test_1x3_segment_values(self):
-        """1x3 = ['I','II','V2']; verify all three segment values."""
-        leads = TEMPLATE_CONFIGURATIONS["1x3"]   # ['I', 'II', 'V2']
-        df = _numpy_to_dataframe(_make_ecg_array(leads), leads)
-        signal, _ = _apply_configuration(df, "1x3")[0]
-        seg = N_SAMPLES // 3
-        np.testing.assert_array_equal(signal[:seg],         1.0)  # I
-        np.testing.assert_array_equal(signal[seg:2 * seg],  2.0)  # II
-        np.testing.assert_array_equal(signal[2 * seg:],     3.0)  # V2
-
-    def test_2x4_row_count(self):
-        """2x4 config has 4 lead rows + 1 rhythm strip → 5 rows total."""
-        df = _make_12lead_df()
-        result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["2x4"])
-        assert len(result) == 5
-
-    def test_2x6_row_count(self):
-        """2x6 config has 6 lead rows + 1 rhythm strip → 7 rows total."""
-        df = _make_12lead_df()
-        result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["2x6"])
-        assert len(result) == 7
-
-    def test_4x3_row_count(self):
-        """4x3 config has 3 lead rows + 1 rhythm strip → 4 rows total."""
-        df = _make_12lead_df()
-        result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["4x3"])
-        assert len(result) == 4
+# (config, expected_leads_per_row) — string entries in expected_leads_per_row
+# represent rhythm-strip rows whose returned leads list is [that_string].
+APPLY_CONFIG_CASES = [
+    pytest.param("V5", [["V5"]], id="single-lead"),
+    # 1xL template strings (single row each)
+    *[
+        pytest.param(key, [TEMPLATE_CONFIGURATIONS[key]], id=f"template-{key}")
+        for key in ONE_ROW_TEMPLATES
+    ],
+    # multi-row template strings
+    pytest.param("4x3", TEMPLATE_CONFIGURATIONS["4x3"], id="template-4x3"),
+    pytest.param("2x4", TEMPLATE_CONFIGURATIONS["2x4"], id="template-2x4"),
+    pytest.param("2x6", TEMPLATE_CONFIGURATIONS["2x6"], id="template-2x6"),
+    # exotic list configs
+    pytest.param(
+        [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
+        [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
+        id="exotic-2x3",
+    ),
+    pytest.param(
+        [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
+        [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
+        id="exotic-3x4",
+    ),
+    pytest.param(
+        [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]],
+        [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]],
+        id="exotic-4x2",
+    ),
+    pytest.param(
+        [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], "V3"],
+        [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], ["V3"]],
+        id="mixed-with-strip",
+    ),
+]
 
 
-class TestApplyConfigurationExotic:
-    """Exotic configurations – same number of columns per row, not matching any template."""
+@pytest.mark.parametrize("config,expected_leads_per_row", APPLY_CONFIG_CASES)
+@pytest.mark.parametrize("disconnect", [True, False])
+class TestApplyConfiguration:
+    """Cartesian product: configuration cases × disconnect flag."""
 
-    def test_two_rows_of_three_row_count(self):
-        df = _make_12lead_df()
-        result = _apply_configuration(df, [["I", "II", "III"], ["AVR", "AVL", "AVF"]])
-        assert len(result) == 2
+    def test_row_count(self, config, expected_leads_per_row, disconnect):
+        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        assert len(result) == len(expected_leads_per_row)
 
-    def test_two_rows_of_three_segment_values(self):
-        """[['I','II','III'], ['AVR','AVL','AVF']]: verify segment values in both rows."""
-        df = _make_12lead_df()
-        config = [["I", "II", "III"], ["AVR", "AVL", "AVF"]]
-        result = _apply_configuration(df, config)
-        seg = N_SAMPLES // 3
+    def test_signal_shapes(self, config, expected_leads_per_row, disconnect):
+        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        for signal, _ in result:
+            assert signal.shape == (N_SAMPLES,)
 
-        (sig0, _) = result[0]
-        np.testing.assert_array_equal(sig0[:seg],        LEAD_VALUE["I"])    # 1.0
-        np.testing.assert_array_equal(sig0[seg:2 * seg], LEAD_VALUE["II"])   # 2.0
-        np.testing.assert_array_equal(sig0[2 * seg:],    LEAD_VALUE["III"])  # 3.0
+    def test_lead_names(self, config, expected_leads_per_row, disconnect):
+        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        for (_, ret_leads), exp in zip(result, expected_leads_per_row):
+            assert ret_leads == (exp if isinstance(exp, list) else [exp])
 
-        (sig1, _) = result[1]
-        np.testing.assert_array_equal(sig1[:seg],        LEAD_VALUE["AVR"])  # 4.0
-        np.testing.assert_array_equal(sig1[seg:2 * seg], LEAD_VALUE["AVL"])  # 5.0
-        np.testing.assert_array_equal(sig1[2 * seg:],    LEAD_VALUE["AVF"])  # 6.0
+    def test_interior_segment_values(self, config, expected_leads_per_row, disconnect):
+        """Interior samples in each segment match the expected lead value."""
+        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        for (signal, _), row_leads in zip(result, expected_leads_per_row):
+            leads = row_leads if isinstance(row_leads, list) else [row_leads]
+            seg = N_SAMPLES // len(leads)
+            for i, lead in enumerate(leads):
+                np.testing.assert_array_equal(signal[i * seg : (i + 1) * seg - 1], LEAD_VALUE[lead])
 
-    def test_three_rows_of_four_row_count(self):
-        df = _make_12lead_df()
-        config = [
-            ["I",   "AVR", "V1", "V4"],
-            ["II",  "AVL", "V2", "V5"],
-            ["III", "AVF", "V3", "V6"],
-        ]
-        result = _apply_configuration(df, config)
-        assert len(result) == 3
-
-    def test_three_rows_of_four_segment_values(self):
-        """Row 0: I→1.0, AVR→4.0, V1→7.0, V4→10.0; row 1: II→2.0, AVL→5.0, V2→8.0, V5→11.0; row 2: III→3.0, AVF→6.0, V3→9.0, V6→12.0."""
-        df = _make_12lead_df()
-        config = [
-            ["I",   "AVR", "V1", "V4"],
-            ["II",  "AVL", "V2", "V5"],
-            ["III", "AVF", "V3", "V6"],
-        ]
-        result = _apply_configuration(df, config)
-        seg = N_SAMPLES // 4
-
-        (sig0, _) = result[0]
-        np.testing.assert_array_equal(sig0[:seg],            LEAD_VALUE["I"])    # 1.0
-        np.testing.assert_array_equal(sig0[seg:2 * seg],     LEAD_VALUE["AVR"])  # 4.0
-        np.testing.assert_array_equal(sig0[2 * seg:3 * seg], LEAD_VALUE["V1"])   # 7.0
-        np.testing.assert_array_equal(sig0[3 * seg:],        LEAD_VALUE["V4"])   # 10.0
-
-        (sig1, _) = result[1]
-        np.testing.assert_array_equal(sig1[:seg],            LEAD_VALUE["II"])   # 2.0
-        np.testing.assert_array_equal(sig1[seg:2 * seg],     LEAD_VALUE["AVL"])  # 5.0
-        np.testing.assert_array_equal(sig1[2 * seg:3 * seg], LEAD_VALUE["V2"])   # 8.0
-        np.testing.assert_array_equal(sig1[3 * seg:],        LEAD_VALUE["V5"])   # 11.0
-
-        (sig2, _) = result[2]
-        np.testing.assert_array_equal(sig2[:seg],            LEAD_VALUE["III"])  # 3.0
-        np.testing.assert_array_equal(sig2[seg:2 * seg],     LEAD_VALUE["AVF"])  # 6.0
-        np.testing.assert_array_equal(sig2[2 * seg:3 * seg], LEAD_VALUE["V3"])   # 9.0
-        np.testing.assert_array_equal(sig2[3 * seg:],        LEAD_VALUE["V6"])   # 12.0
-
-    def test_single_lead_string(self):
-        """A bare lead string (full-duration rhythm strip) is a valid configuration."""
-        df = _make_12lead_df()
-        result = _apply_configuration(df, "V5")
-        assert len(result) == 1
-        signal, leads = result[0]
-        assert leads == ["V5"]
-        np.testing.assert_array_equal(signal, LEAD_VALUE["V5"])  # 11.0
-
-    def test_mixed_rows_with_rhythm_strip(self):
-        """[['I','II','III','AVR'], ['AVL','AVF','V1','V2'], 'V3'] – 2 rows + strip."""
-        df = _make_12lead_df()
-        config = [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], "V3"]
-        result = _apply_configuration(df, config)
-        assert len(result) == 3
-        seg = N_SAMPLES // 4
-
-        (sig0, _) = result[0]
-        np.testing.assert_array_equal(sig0[:seg],            LEAD_VALUE["I"])    # 1.0
-        np.testing.assert_array_equal(sig0[seg:2 * seg],     LEAD_VALUE["II"])   # 2.0
-        np.testing.assert_array_equal(sig0[2 * seg:3 * seg], LEAD_VALUE["III"])  # 3.0
-        np.testing.assert_array_equal(sig0[3 * seg:],        LEAD_VALUE["AVR"])  # 4.0
-
-        (sig1, _) = result[1]
-        np.testing.assert_array_equal(sig1[:seg],            LEAD_VALUE["AVL"])  # 5.0
-        np.testing.assert_array_equal(sig1[seg:2 * seg],     LEAD_VALUE["AVF"])  # 6.0
-        np.testing.assert_array_equal(sig1[2 * seg:3 * seg], LEAD_VALUE["V1"])   # 7.0
-        np.testing.assert_array_equal(sig1[3 * seg:],        LEAD_VALUE["V2"])   # 8.0
-
-        # Rhythm strip row: V3 → value 9.0, full N_SAMPLES length
-        sig_strip, leads_strip = result[2]
-        assert leads_strip == ["V3"]
-        np.testing.assert_array_equal(sig_strip, LEAD_VALUE["V3"])  # 9.0
-
-    def test_four_rows_of_two(self):
-        """[['I','II'], ['III','AVR'], ['AVL','AVF'], ['V1','V2']] – 4 rows of 2."""
-        df = _make_12lead_df()
-        config = [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]]
-        result = _apply_configuration(df, config)
-        assert len(result) == 4
-        seg = N_SAMPLES // 2
-
-        (sig0, _) = result[0]  # row 0: I→1.0, II→2.0
-        np.testing.assert_array_equal(sig0[:seg], LEAD_VALUE["I"])   # 1.0
-        np.testing.assert_array_equal(sig0[seg:], LEAD_VALUE["II"])  # 2.0
-
-        (sig1, _) = result[1]  # row 1: III→3.0, AVR→4.0
-        np.testing.assert_array_equal(sig1[:seg], LEAD_VALUE["III"])  # 3.0
-        np.testing.assert_array_equal(sig1[seg:], LEAD_VALUE["AVR"])  # 4.0
-
-        (sig2, _) = result[2]  # row 2: AVL→5.0, AVF→6.0
-        np.testing.assert_array_equal(sig2[:seg], LEAD_VALUE["AVL"])  # 5.0
-        np.testing.assert_array_equal(sig2[seg:], LEAD_VALUE["AVF"])  # 6.0
-
-        (sig3, _) = result[3]  # row 3: V1→7.0, V2→8.0
-        np.testing.assert_array_equal(sig3[:seg], LEAD_VALUE["V1"])  # 7.0
-        np.testing.assert_array_equal(sig3[seg:], LEAD_VALUE["V2"])  # 8.0
+    def test_last_sample_per_segment(self, config, expected_leads_per_row, disconnect):
+        """Last sample of each segment is NaN iff disconnect_segments=True."""
+        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        for (signal, _), row_leads in zip(result, expected_leads_per_row):
+            leads = row_leads if isinstance(row_leads, list) else [row_leads]
+            seg = N_SAMPLES // len(leads)
+            for i, lead in enumerate(leads):
+                last = (i + 1) * seg - 1
+                if disconnect:
+                    assert np.isnan(signal[last])
+                else:
+                    assert signal[last] == LEAD_VALUE[lead]

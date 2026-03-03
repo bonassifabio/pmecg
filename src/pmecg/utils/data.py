@@ -83,7 +83,7 @@ def _validate_lead_names(lead_name: str | list[str]) -> None:
     
 
 # segment_leads 
-def _segment_leads(df: pd.DataFrame, selected_leads: List[str]) -> Tuple[np.ndarray, List[str]]:
+def _segment_leads(df: pd.DataFrame, selected_leads: List[str], disconnect_segments: bool = True) -> Tuple[np.ndarray, List[str]]:
     """Segment the ECG data so that segments of the leads are concatenated in a single vector.
        
        Let $n$ denote the number of leads in `selected_leads`, and let $N$ be the sequence length (in number of data-points).
@@ -97,6 +97,9 @@ def _segment_leads(df: pd.DataFrame, selected_leads: List[str]) -> Tuple[np.ndar
         The DataFrame containing the ECG data, where each column corresponds to a lead and the column names are the names of the leads.
     selected_leads : List[str]
         The names of the leads to be included in the segmented DataFrame.
+    disconnect_segments : bool, optional
+        If True, the last sample of each segment is set to NaN so that adjacent
+        segments are not visually connected in the plot. By default True.
 
     Returns
     -------
@@ -117,11 +120,13 @@ def _segment_leads(df: pd.DataFrame, selected_leads: List[str]) -> Tuple[np.ndar
         start_idx = i * segment_len
         end_idx = start_idx + segment_len
         signal[start_idx:end_idx] = df[lead].values[:segment_len]
+        if disconnect_segments:
+            signal[end_idx - 1] = np.nan
 
     return signal, selected_leads
 
 
-def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str) -> Tuple[Tuple[np.ndarray, List[str]]]:
+def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str, disconnect_segments: bool = True) -> Tuple[Tuple[np.ndarray, List[str]]]:
     """Apply the plotting configuration to the ECG data.
 
     Parameters
@@ -132,6 +137,8 @@ def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str)
         The plotting configuration to be applied. If a list of lists of strings is provided, it indicates what leads are plotted in each row. 
         If a single lead string is provided, it indicates that only that lead should be plotted for its entire duration.
         If the configuration is a string that matches one of the keys in `TEMPLATE_CONFIGURATIONS`, the corresponding template configuration will be applied.
+    disconnect_segments : bool, optional
+        Passed through to :func:`_segment_leads`. By default True.
 
     Returns
     -------
@@ -141,18 +148,18 @@ def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str)
     result = []
     if isinstance(configuration, str):
         if configuration in SUPPORTED_LEADS:
-            result.append(_segment_leads(df, configuration))
+            result.append(_segment_leads(df, configuration, disconnect_segments))
         elif configuration in TEMPLATE_CONFIGURATIONS:
-            result.extend(_apply_configuration(df, TEMPLATE_CONFIGURATIONS[configuration]))
+            result.extend(_apply_configuration(df, TEMPLATE_CONFIGURATIONS[configuration], disconnect_segments))
         else:
             raise ValueError(f"configuration string '{configuration}' is not supported. It should either be a lead name or one of the following template configurations: {list(TEMPLATE_CONFIGURATIONS.keys())}")
 
     elif isinstance(configuration, list):
         if all(isinstance(entry, str) for entry in configuration):
-            result.append(_segment_leads(df, configuration))
+            result.append(_segment_leads(df, configuration, disconnect_segments))
         elif any(isinstance(entry, list) for entry in configuration):
             for entry in configuration:
-                result.append(_segment_leads(df, entry))
+                result.append(_segment_leads(df, entry, disconnect_segments))
         else:
             raise ValueError("configuration list must contain either strings (lead names) or sub-lists of strings (lead names for each row)")
     else:

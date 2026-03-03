@@ -43,7 +43,7 @@ ConfigurationDataType = List[List[str] | str] | str
 
 class ECGPlotter:
 
-    def __init__(self, grid_mode: Optional[Literal['inch', 'cm']] = 'cm', speed: float = 50.0, voltage: float = 20.0, row_spacing: float = 2.0, line_width: float = 0.5, grid_color: str = '#f4aaaa', print_diagnostics: bool = False, show_time_axis: bool = False):
+    def __init__(self, grid_mode: Optional[Literal['inch', 'cm']] = 'cm', speed: float = 50.0, voltage: float = 20.0, row_spacing: float = 2.0, line_width: float = 0.5, grid_color: str = '#f4aaaa', print_diagnostics: bool = False, show_time_axis: bool = False, disconnect_segments: bool = True):
         """The ECGPlotter class can be used to generate plots for multiple ECGs using the same plotting configuration.
 
         Parameters
@@ -69,6 +69,9 @@ class ECGPlotter:
         show_time_axis : bool, optional
             Whether to show the time axis (x-axis ticks and spine) at the bottom of the
             figure, by default False.
+        disconnect_segments : bool, optional
+            If True, the last sample of each segment is set to NaN so that adjacent
+            segments are not visually connected in the plot. By default True.
         """
         assert grid_mode in (None, 'cm'), "grid_mode must be None or 'cm'"
         assert isinstance(speed, (int, float)) and speed > 0, "speed must be a positive number"
@@ -85,6 +88,7 @@ class ECGPlotter:
         self.grid_color = grid_color
         self.print_diagnostics = print_diagnostics
         self.show_time_axis = show_time_axis
+        self.disconnect_segments = disconnect_segments
 
     def plot(self,
              ecg_data: ECGDataType,
@@ -130,7 +134,7 @@ class ECGPlotter:
             raise ValueError("ecg_data must be a tuple of (list of numpy arrays, list of lead names), a numpy array, a list of numpy arrays, or a pandas DataFrame")
 
         # Apply the layout configuration → one (signal, leads) pair per row
-        rows = _apply_configuration(df_data, configuration)
+        rows = _apply_configuration(df_data, configuration, self.disconnect_segments)
         n_rows = len(rows)
 
         # Number of samples is the same for every row (the full recording length)
