@@ -1,23 +1,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Union
+from typing import Literal, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
-from .utils.data import _numpy_to_dataframe, _validate_lead_names, _apply_configuration
+
+from .utils.data import (
+    _apply_configuration,
+    _numpy_to_dataframe,
+    _validate_lead_names,
+)
 from .utils.plot import (
-    MM_PER_INCH,
     LEFT_MARGIN_MM,
-    _RenderContext,
+    MM_PER_INCH,
     _compute_figure_size,
     _compute_row_offsets,
     _nice_tick_step,
     _plot_grid,
     _plot_row,
     _print_information,
+    _RenderContext,
 )
 
 
@@ -54,17 +59,17 @@ class ECGStats:
     t_axis_deg : float, optional
         T-wave axis in degrees.
     """
-    bpm: Optional[float] = None
-    snr: Optional[float] = None
-    rr_interval_ms: Optional[float] = None
-    hrv_ms: Optional[float] = None
-    pr_interval_ms: Optional[float] = None
-    qrs_duration_ms: Optional[float] = None
-    qt_interval_ms: Optional[float] = None
-    qtc_interval_ms: Optional[float] = None
-    p_axis_deg: Optional[float] = None
-    qrs_axis_deg: Optional[float] = None
-    t_axis_deg: Optional[float] = None
+    bpm: float | None = None
+    snr: float | None = None
+    rr_interval_ms: float | None = None
+    hrv_ms: float | None = None
+    pr_interval_ms: float | None = None
+    qrs_duration_ms: float | None = None
+    qt_interval_ms: float | None = None
+    qtc_interval_ms: float | None = None
+    p_axis_deg: float | None = None
+    qrs_axis_deg: float | None = None
+    t_axis_deg: float | None = None
 
 
 @dataclass
@@ -82,10 +87,10 @@ class ECGInformation:
     machine_model : str, optional
         ECG machine model, printed in the bottom-right corner.
     """
-    hospital: Optional[str] = None
-    patient_name: Optional[str] = None
-    date: Optional[str] = None
-    machine_model: Optional[str] = None
+    hospital: str | None = None
+    patient_name: str | None = None
+    date: str | None = None
+    machine_model: str | None = None
 
 ECGDataType = Union[
     tuple[Union[list[np.ndarray], np.ndarray], list[str]],
@@ -98,7 +103,7 @@ class ECGPlotter:
 
     def __init__(
         self,
-        grid_mode: Optional[Literal['inch', 'cm']] = 'cm',
+        grid_mode: Literal['inch', 'cm'] | None = 'cm',
         speed: float = 50.0,
         voltage: float = 20.0,
         row_spacing: float = 2.0,
@@ -159,8 +164,8 @@ class ECGPlotter:
              configuration: ConfigurationDataType,
              sampling_frequency: float = 500.0,
              show: bool = True,
-             information: Optional[ECGInformation] = None,
-             stats: Optional[ECGStats] = None) -> Figure:
+             information: ECGInformation | None = None,
+             stats: ECGStats | None = None) -> Figure:
         """Plot the ECG in `ecg_data` using the plotting configuration specified in `configuration`.
 
         Parameters

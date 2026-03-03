@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import warnings
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -20,14 +19,14 @@ TEMPLATE_CONFIGURATIONS = {
     '4x3': [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], 'II']
 }
 
-def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: Optional[list[str]] = None) -> pd.DataFrame:
+def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = None) -> pd.DataFrame:
     """Convert ECG data in numpy array format to a pandas DataFrame.
 
     Parameters
     ----------
     ecg_data : np.ndarray | list[np.ndarray]
         The ECG data to be converted. It should either be a numpy array with shape (n_samples, n_leads) or a list of numpy arrays, each with shape (n_samples,).
-    lead_names : Optional[list[str]], defaults to None
+    lead_names : list[str] | None, defaults to None
         The names of the leads corresponding to the number of leads. If None, the function will use the standard 12 leads as default.
 
     Returns
@@ -60,7 +59,7 @@ def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: Optional[list[str]] = 
         raise ValueError("ecg_data must be a numpy array or list of numpy arrays")
 
     # At this stage, we know ecg_data is a 2D numpy array with shape (n_samples, n_leads) and lead_names is a list of strings with length equal to the number of leads
-    return pd.DataFrame(ecg_data, columns=[l.upper() for l in lead_names])
+    return pd.DataFrame(ecg_data, columns=[name.upper() for name in lead_names])
 
 
 def _validate_lead_names(lead_name: str | list[str]) -> None:
@@ -117,7 +116,12 @@ def _segment_leads(df: pd.DataFrame, selected_leads: list[str], disconnect_segme
     segment_len = df.shape[0] // len(selected_leads)
 
     if df.shape[0] != len(selected_leads) * segment_len:
-        warnings.warn(f"df.shape[0] ({df.shape[0]}) is not evenly divisible by the number of selected leads ({len(selected_leads)}). The resulting sequence might contain NaNs.")
+        warnings.warn(
+            f"df.shape[0] ({df.shape[0]}) is not evenly divisible by the "
+            f"number of selected leads ({len(selected_leads)}). "
+            "The resulting sequence might contain NaNs.",
+            stacklevel=2,
+        )
 
     for i, lead in enumerate(selected_leads):
         start_idx = i * segment_len
