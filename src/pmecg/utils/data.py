@@ -20,14 +20,14 @@ TEMPLATE_CONFIGURATIONS = {
     '4x3': [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], 'II']
 }
 
-def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: Optional[List[str]] = None) -> pd.DataFrame:
+def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: Optional[list[str]] = None) -> pd.DataFrame:
     """Convert ECG data in numpy array format to a pandas DataFrame.
 
     Parameters
     ----------
-    ecg_data : np.ndarray | List[np.ndarray]
+    ecg_data : np.ndarray | list[np.ndarray]
         The ECG data to be converted. It should either be a numpy array with shape (n_samples, n_leads) or a list of numpy arrays, each with shape (n_samples,).
-    lead_names : Optional[List[str]], defaults to None
+    lead_names : Optional[list[str]], defaults to None
         The names of the leads corresponding to the number of leads. If None, the function will use the standard 12 leads as default.
 
     Returns
@@ -86,7 +86,7 @@ def _validate_lead_names(lead_name: str | list[str]) -> None:
 
 
 # segment_leads
-def _segment_leads(df: pd.DataFrame, selected_leads: List[str], disconnect_segments: bool = True) -> Tuple[np.ndarray, List[str]]:
+def _segment_leads(df: pd.DataFrame, selected_leads: list[str], disconnect_segments: bool = True) -> tuple[np.ndarray, list[str]]:
     """Segment the ECG data so that segments of the leads are concatenated in a single vector.
 
        Let $n$ denote the number of leads in `selected_leads`, and let $N$ be the sequence length (in number of data-points).
@@ -98,7 +98,7 @@ def _segment_leads(df: pd.DataFrame, selected_leads: List[str], disconnect_segme
     ----------
     df : pd.DataFrame
         The DataFrame containing the ECG data, where each column corresponds to a lead and the column names are the names of the leads.
-    selected_leads : List[str]
+    selected_leads : list[str]
         The names of the leads to be included in the segmented DataFrame.
     disconnect_segments : bool, optional
         If True, the last sample of each segment is set to NaN so that adjacent
@@ -106,7 +106,7 @@ def _segment_leads(df: pd.DataFrame, selected_leads: List[str], disconnect_segme
 
     Returns
     -------
-    Tuple[np.ndarray, List[str]]
+    tuple[np.ndarray, list[str]]
         A tuple containing the segmented ECG data as a numpy array and the list of selected lead names.
     """
     if isinstance(selected_leads, str):
@@ -129,14 +129,14 @@ def _segment_leads(df: pd.DataFrame, selected_leads: List[str], disconnect_segme
     return signal, selected_leads
 
 
-def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str, disconnect_segments: bool = True) -> Tuple[Tuple[np.ndarray, List[str]]]:
+def _apply_configuration(df: pd.DataFrame, configuration: list[list[str]] | str, disconnect_segments: bool = True) -> tuple[tuple[np.ndarray, list[str]]]:
     """Apply the plotting configuration to the ECG data.
 
     Parameters
     ----------
     df : pd.DataFrame
         The DataFrame containing the ECG data, where each column corresponds to a lead and the column names are the names of the leads.
-    configuration : List[List[str]] | str
+    configuration : list[list[str]] | str
         The plotting configuration to be applied. If a list of lists of strings is provided, it indicates what leads are plotted in each row.
         If a single lead string is provided, it indicates that only that lead should be plotted for its entire duration.
         If the configuration is a string that matches one of the keys in `TEMPLATE_CONFIGURATIONS`, the corresponding template configuration will be applied.
@@ -145,8 +145,8 @@ def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str,
 
     Returns
     -------
-    Tuple[Tuple[np.ndarray, List[str]]]
-        A N-uple containing the pairs (signal: np.ndarray, selected_leads: List[str]) for each row in the configuration, where signal is the segmented ECG data corresponding to the selected leads for that row.
+    tuple[tuple[np.ndarray, list[str]]]
+        A N-uple containing the pairs (signal: np.ndarray, selected_leads: list[str]) for each row in the configuration, where signal is the segmented ECG data corresponding to the selected leads for that row.
     """
     result = []
     if isinstance(configuration, str):

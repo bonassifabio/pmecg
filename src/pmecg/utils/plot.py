@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from math import ceil
 from typing import Literal
@@ -79,7 +81,7 @@ def _compute_figure_size(
     voltage: float,
     row_spacing_mv: float,
     print_diagnostics: bool = False,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
 
     Parameters
@@ -102,7 +104,7 @@ def _compute_figure_size(
 
     Returns
     -------
-    Tuple[float, float]
+    tuple[float, float]
         (width_inches, height_inches)
     """
     # --- Width ---
@@ -130,7 +132,7 @@ def _compute_row_offsets(
     height_inches: float,
     row_spacing_inches: float,
     print_diagnostics: bool = False,
-) -> List[float]:
+) -> list[float]:
     """Pre-compute the vertical centre (zero-line position, in inches) for each ECG row.
 
     Rows are laid out top-to-bottom with a fixed spacing between zero-lines and a
@@ -152,7 +154,7 @@ def _compute_row_offsets(
 
     Returns
     -------
-    List[float]
+    list[float]
         y-coordinate (in inches from figure bottom) of the zero-line of each row.
     """
     top_extra_mm = DIAGNOSTICS_TOP_EXTRA_MARGIN_MM if print_diagnostics else 0.0
@@ -173,6 +175,15 @@ def _plot_calibration_pulse(
     The pulse is 1 large square wide (CAL_PULSE_WIDTH_MM = 5 mm) and 1 mV tall,
     positioned within the left margin starting at CAL_PULSE_OFFSET_MM from the
     left edge of the figure.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes to draw on. Coordinates are in inches.
+    ctx : _RenderContext
+        Rendering context; ``ctx.mv_to_inches`` and ``ctx.line_width`` are used.
+    y_offset : float
+        Vertical zero-line of the row in figure inches.
     """
     x0 = CAL_PULSE_OFFSET_MM / MM_PER_INCH
     x1 = (CAL_PULSE_OFFSET_MM + CAL_PULSE_WIDTH_MM) / MM_PER_INCH
@@ -346,7 +357,7 @@ def _print_information(
 
     # --- Top-left: patient / recording info, anchored just above the first ECG row ---
     if information is not None:
-        info_lines: List[str] = []
+        info_lines: list[str] = []
         if getattr(information, "hospital", None):
             info_lines.append(f"Hospital: {information.hospital}")
         if getattr(information, "patient_name", None):
@@ -361,7 +372,7 @@ def _print_information(
 
     # --- Top-right: ECG statistics grid ---
     if stats is not None:
-        stat_items: List[Tuple[str, str]] = []
+        stat_items: list[tuple[str, str]] = []
         if stats.bpm is not None:
             stat_items.append(("BPM",     f"{stats.bpm:.0f}"))
         if stats.snr is not None:

@@ -167,12 +167,12 @@ class ECGPlotter:
         ----------
         ecg_data : ECGDataType
             The ECG data to be plotted. The following formats are supported
-                - Tuple[list[np.ndarray], list[str]], where each array corresponds to a lead and has shape (n_samples,), and the list of strings contains the names of the leads
-                - Tuple[np.ndarray, list[str]], where the array has shape (n_leads, n_samples) and the list of strings contains the names of the leads
+                - tuple[list[np.ndarray], list[str]], where each array corresponds to a lead and has shape (n_samples,), and the list of strings contains the names of the leads
+                - tuple[np.ndarray, list[str]], where the array has shape (n_samples, n_leads) and the list of strings contains the names of the leads
                 - pd.DataFrame, where each column corresponds to a lead and the column names are the names of the leads
         configuration : ConfigurationDataType
             The plotting configuration to be used. The following formats are supported:
-                - List[List[str], str], where sub-lists indicate what leads are plotted in each row, while strings are used to indicate that the lead should be plotted for its entire duration.
+                - list[list[str] | str], where sub-lists indicate what leads are plotted in each row, while strings are used to indicate that the lead should be plotted for its entire duration.
                 - str, to indicate notable templates.
         sampling_frequency : float, optional
             The sampling frequency of the ECG data in Hz, by default 500.0
