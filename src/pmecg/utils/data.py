@@ -12,9 +12,9 @@ TEMPLATE_CONFIGURATIONS = {
     '1x6': ['I', 'II', 'III', 'AVR', 'AVL', 'AVF'],
     '1x8': ['I', 'II', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
     '1x12': ['I', 'II', 'III', 'AVR', 'AVL', 'AVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
-    '2x4': [['I', 'II', 'V1', 'V2',], ['V3', 'V4', 'V5', 'V6'], 'II'],
-    '2x6': [['I', 'II', 'III', 'AVR', 'AVL', 'AVF'], ['V1', 'V2', 'V3', 'V4', 'V5', 'V6'], 'II'],
-    '4x3': [['I', 'II', 'III'], ['AVR', 'AVL', 'AVF'], ['V1', 'V2', 'V3'], ['V4', 'V5', 'V6'], 'II']
+    '2x4': [['I', 'V3'], ['II', 'V4'], ['III', 'V5'], ['AVR', 'V6'], 'II'],
+    '2x6': [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], 'II'],
+    '4x3': [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], 'II']
 }
 
 def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: Optional[List[str]] = None) -> pd.DataFrame:
@@ -143,7 +143,7 @@ def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str)
         if configuration in SUPPORTED_LEADS:
             result.append(_segment_leads(df, configuration))
         elif configuration in TEMPLATE_CONFIGURATIONS:
-            result.append(_segment_leads(df, TEMPLATE_CONFIGURATIONS[configuration]))
+            result.extend(_apply_configuration(df, TEMPLATE_CONFIGURATIONS[configuration]))
         else:
             raise ValueError(f"configuration string '{configuration}' is not supported. It should either be a lead name or one of the following template configurations: {list(TEMPLATE_CONFIGURATIONS.keys())}")
 
@@ -152,7 +152,7 @@ def _apply_configuration(df: pd.DataFrame, configuration: List[List[str]] | str)
             result.append(_segment_leads(df, configuration))
         elif any(isinstance(entry, list) for entry in configuration):
             for entry in configuration:
-                result.append(_apply_configuration(df, entry))
+                result.append(_segment_leads(df, entry))
         else:
             raise ValueError("configuration list must contain either strings (lead names) or sub-lists of strings (lead names for each row)")
     else:

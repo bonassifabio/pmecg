@@ -38,4 +38,5 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ipython"
 ]

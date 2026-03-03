@@ -177,21 +177,22 @@ class TestApplyConfigurationTemplates:
         np.testing.assert_array_equal(signal[2 * seg:],     3.0)  # V2
 
     def test_2x4_row_count(self):
-        """2x4 config has 2 lead rows + 1 rhythm strip → 3 rows total."""
+        """2x4 config has 4 lead rows + 1 rhythm strip → 5 rows total."""
         df = _make_12lead_df()
         result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["2x4"])
-        assert len(result) == 3
+        assert len(result) == 5
 
     def test_2x6_row_count(self):
+        """2x6 config has 6 lead rows + 1 rhythm strip → 7 rows total."""
         df = _make_12lead_df()
         result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["2x6"])
-        assert len(result) == 3
+        assert len(result) == 7
 
     def test_4x3_row_count(self):
-        """4x3 config has 4 lead rows + 1 rhythm strip → 5 rows total."""
+        """4x3 config has 3 lead rows + 1 rhythm strip → 4 rows total."""
         df = _make_12lead_df()
         result = _apply_configuration(df, TEMPLATE_CONFIGURATIONS["4x3"])
-        assert len(result) == 5
+        assert len(result) == 4
 
 
 class TestApplyConfigurationExotic:
@@ -209,12 +210,12 @@ class TestApplyConfigurationExotic:
         result = _apply_configuration(df, config)
         seg = N_SAMPLES // 3
 
-        (sig0, _), = result[0]
+        (sig0, _) = result[0]
         np.testing.assert_array_equal(sig0[:seg],        LEAD_VALUE["I"])    # 1.0
         np.testing.assert_array_equal(sig0[seg:2 * seg], LEAD_VALUE["II"])   # 2.0
         np.testing.assert_array_equal(sig0[2 * seg:],    LEAD_VALUE["III"])  # 3.0
 
-        (sig1, _), = result[1]
+        (sig1, _) = result[1]
         np.testing.assert_array_equal(sig1[:seg],        LEAD_VALUE["AVR"])  # 4.0
         np.testing.assert_array_equal(sig1[seg:2 * seg], LEAD_VALUE["AVL"])  # 5.0
         np.testing.assert_array_equal(sig1[2 * seg:],    LEAD_VALUE["AVF"])  # 6.0
@@ -240,19 +241,19 @@ class TestApplyConfigurationExotic:
         result = _apply_configuration(df, config)
         seg = N_SAMPLES // 4
 
-        (sig0, _), = result[0]
+        (sig0, _) = result[0]
         np.testing.assert_array_equal(sig0[:seg],            LEAD_VALUE["I"])    # 1.0
         np.testing.assert_array_equal(sig0[seg:2 * seg],     LEAD_VALUE["AVR"])  # 4.0
         np.testing.assert_array_equal(sig0[2 * seg:3 * seg], LEAD_VALUE["V1"])   # 7.0
         np.testing.assert_array_equal(sig0[3 * seg:],        LEAD_VALUE["V4"])   # 10.0
 
-        (sig1, _), = result[1]
+        (sig1, _) = result[1]
         np.testing.assert_array_equal(sig1[:seg],            LEAD_VALUE["II"])   # 2.0
         np.testing.assert_array_equal(sig1[seg:2 * seg],     LEAD_VALUE["AVL"])  # 5.0
         np.testing.assert_array_equal(sig1[2 * seg:3 * seg], LEAD_VALUE["V2"])   # 8.0
         np.testing.assert_array_equal(sig1[3 * seg:],        LEAD_VALUE["V5"])   # 11.0
 
-        (sig2, _), = result[2]
+        (sig2, _) = result[2]
         np.testing.assert_array_equal(sig2[:seg],            LEAD_VALUE["III"])  # 3.0
         np.testing.assert_array_equal(sig2[seg:2 * seg],     LEAD_VALUE["AVF"])  # 6.0
         np.testing.assert_array_equal(sig2[2 * seg:3 * seg], LEAD_VALUE["V3"])   # 9.0
@@ -275,20 +276,20 @@ class TestApplyConfigurationExotic:
         assert len(result) == 3
         seg = N_SAMPLES // 4
 
-        (sig0, _), = result[0]
+        (sig0, _) = result[0]
         np.testing.assert_array_equal(sig0[:seg],            LEAD_VALUE["I"])    # 1.0
         np.testing.assert_array_equal(sig0[seg:2 * seg],     LEAD_VALUE["II"])   # 2.0
         np.testing.assert_array_equal(sig0[2 * seg:3 * seg], LEAD_VALUE["III"])  # 3.0
         np.testing.assert_array_equal(sig0[3 * seg:],        LEAD_VALUE["AVR"])  # 4.0
 
-        (sig1, _), = result[1]
+        (sig1, _) = result[1]
         np.testing.assert_array_equal(sig1[:seg],            LEAD_VALUE["AVL"])  # 5.0
         np.testing.assert_array_equal(sig1[seg:2 * seg],     LEAD_VALUE["AVF"])  # 6.0
         np.testing.assert_array_equal(sig1[2 * seg:3 * seg], LEAD_VALUE["V1"])   # 7.0
         np.testing.assert_array_equal(sig1[3 * seg:],        LEAD_VALUE["V2"])   # 8.0
 
         # Rhythm strip row: V3 → value 9.0, full N_SAMPLES length
-        (sig_strip, leads_strip), = result[2]
+        sig_strip, leads_strip = result[2]
         assert leads_strip == ["V3"]
         np.testing.assert_array_equal(sig_strip, LEAD_VALUE["V3"])  # 9.0
 
@@ -300,18 +301,18 @@ class TestApplyConfigurationExotic:
         assert len(result) == 4
         seg = N_SAMPLES // 2
 
-        (sig0, _), = result[0]  # row 0: I→1.0, II→2.0
+        (sig0, _) = result[0]  # row 0: I→1.0, II→2.0
         np.testing.assert_array_equal(sig0[:seg], LEAD_VALUE["I"])   # 1.0
         np.testing.assert_array_equal(sig0[seg:], LEAD_VALUE["II"])  # 2.0
 
-        (sig1, _), = result[1]  # row 1: III→3.0, AVR→4.0
+        (sig1, _) = result[1]  # row 1: III→3.0, AVR→4.0
         np.testing.assert_array_equal(sig1[:seg], LEAD_VALUE["III"])  # 3.0
         np.testing.assert_array_equal(sig1[seg:], LEAD_VALUE["AVR"])  # 4.0
 
-        (sig2, _), = result[2]  # row 2: AVL→5.0, AVF→6.0
+        (sig2, _) = result[2]  # row 2: AVL→5.0, AVF→6.0
         np.testing.assert_array_equal(sig2[:seg], LEAD_VALUE["AVL"])  # 5.0
         np.testing.assert_array_equal(sig2[seg:], LEAD_VALUE["AVF"])  # 6.0
 
-        (sig3, _), = result[3]  # row 3: V1→7.0, V2→8.0
+        (sig3, _) = result[3]  # row 3: V1→7.0, V2→8.0
         np.testing.assert_array_equal(sig3[:seg], LEAD_VALUE["V1"])  # 7.0
         np.testing.assert_array_equal(sig3[seg:], LEAD_VALUE["V2"])  # 8.0
