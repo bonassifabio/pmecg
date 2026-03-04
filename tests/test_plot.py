@@ -1,15 +1,8 @@
-"""Visual smoke-test: load PTB-XL record #1, compute stats via NeuroKit2, and plot."""
-
-import warnings
-
 import pandas as pd
 import pandas.errors
 from ptbxl_helper import get_ptbxl_data
 
 from pmecg.plot import ECGInformation, ECGPlotter
-
-# neurokit2 triggers pandas ChainedAssignmentError warnings internally; suppress them
-warnings.filterwarnings("ignore", category=pandas.errors.ChainedAssignmentError)
 
 # ── Load ECG ──────────────────────────────────────────────────────────────
 record, metadata, stats = get_ptbxl_data(1)
