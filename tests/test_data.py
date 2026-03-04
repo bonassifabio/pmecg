@@ -48,7 +48,7 @@ class TestNumpyToDataframe:
     def test_columns_match_leads(self, template_key):
         leads = TEMPLATE_CONFIGURATIONS[template_key]
         df = _numpy_to_dataframe(_make_ecg_array(leads), leads)
-        assert list(df.columns) == [l.upper() for l in leads]
+        assert list(df.columns) == [lead.upper() for lead in leads]
 
     def test_values_match_lead_index(self, template_key):
         """Column i must equal (i+1.0) for all samples."""
@@ -146,11 +146,21 @@ APPLY_CONFIG_CASES = [
     pytest.param("1x4", [["I"], ["II"], ["III"], ["V2"]], id="template-1x4"),
     pytest.param("1x6", [["I"], ["II"], ["III"], ["AVR"], ["AVL"], ["AVF"]], id="template-1x6"),
     pytest.param("1x8", [["I"], ["II"], ["V1"], ["V2"], ["V3"], ["V4"], ["V5"], ["V6"]], id="template-1x8"),
-    pytest.param("1x12", [["I"], ["II"], ["III"], ["AVR"], ["AVL"], ["AVF"], ["V1"], ["V2"], ["V3"], ["V4"], ["V5"], ["V6"]], id="template-1x12"),
+    pytest.param(
+        "1x12",
+        [["I"], ["II"], ["III"], ["AVR"], ["AVL"], ["AVF"], ["V1"], ["V2"], ["V3"], ["V4"], ["V5"], ["V6"]],
+        id="template-1x12",
+    ),
     # multi-row template strings
-    pytest.param("4x3", [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], ['II']], id="template-4x3"),
+    pytest.param(
+        "4x3", [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], ['II']], id="template-4x3"
+    ),
     pytest.param("2x4", [['I', 'V3'], ['II', 'V4'], ['III', 'V5'], ['AVR', 'V6'], ['II']], id="template-2x4"),
-    pytest.param("2x6", [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], ['II']], id="template-2x6"),
+    pytest.param(
+        "2x6",
+        [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], ['II']],
+        id="template-2x6",
+    ),
     # exotic list configs
     pytest.param(
         [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
@@ -223,10 +233,10 @@ class TestApplyConfigurationDefault:
         df = _make_12lead_df()
         # Disable disconnect_segments to allow direct array comparison
         result = _apply_configuration(df, configuration=None, disconnect_segments=False)
-        
+
         # Expecting one row per lead
         assert len(result) == len(df.columns)
-        
+
         for i, (signal, selected_leads) in enumerate(result):
             # Each row should contain exactly one lead
             assert len(selected_leads) == 1
