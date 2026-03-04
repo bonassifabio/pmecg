@@ -6,6 +6,12 @@
 
 **pmecg** is a Python library for plotting ECG (electrocardiogram) signals on a paper-like support, with flexible support for variable lead configurations, time scales, and visual styles.
 
+## Examples
+
+| 1×3 layout | 4×3 layout |
+|:---:|:---:|
+| ![1x3 ECG](example/outputs/1/1x3.png) | ![4x3 ECG](example/outputs/1/4x3.png) |
+
 ## Features
 
 - **Paper-like Rendering**: Classic grid background with major/minor squares.
