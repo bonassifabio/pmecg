@@ -26,9 +26,6 @@ dependencies = [
     "pandas>=2.3",
 ]
 
-[project.optional-dependencies]
-nk = ["neurokit2>=0.2.12"]
-
 [project.urls]
 Homepage = "https://github.com/bonassifabio/pmecg"
 Repository = "https://github.com/bonassifabio/pmecg"

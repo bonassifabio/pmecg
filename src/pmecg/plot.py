@@ -10,7 +10,6 @@ from matplotlib.figure import Figure
 
 from .utils.data import (
     _apply_configuration,
-    _compute_ecg_stats,
     _numpy_to_dataframe,
     _validate_lead_names,
 )
@@ -71,71 +70,6 @@ class ECGStats:
     p_axis_deg: float | None = None
     qrs_axis_deg: float | None = None
     t_axis_deg: float | None = None
-
-    @classmethod
-    def from_neurokit(
-        cls,
-        ecg_data: ECGDataType,
-        sampling_frequency: float = 500.0,
-        lead: str = "II",
-    ) -> ECGStats:
-        """Create an ECGStats instance by automatically computing metrics using neurokit2.
-
-        Parameters
-        ----------
-        ecg_data : ECGDataType
-            The ECG data to be analyzed. Supported formats are the same as for
-            :meth:`ECGPlotter.plot`.
-        sampling_frequency : float, optional
-            The sampling frequency of the ECG data in Hz, by default 500.0.
-        lead : str, optional
-            The lead name to be used for the computation, by default "II".
-
-        Returns
-        -------
-        ECGStats
-            An instance of ECGStats populated with the computed metrics.
-
-        Raises
-        ------
-        ImportError
-            If neurokit2 is not installed.
-        ValueError
-            If the ecg_data format is not supported.
-        """
-        try:
-            import neurokit2 as nk  # noqa: F401
-        except ImportError:
-            raise ImportError(
-                "neurokit2 is required to compute ECG statistics. "
-                "Install it using `pip install pmecg[nk]`."
-            ) from None
-
-        # Convert ecg_data to DataFrame using the same logic as ECGPlotter.plot
-        if isinstance(ecg_data, tuple):
-            _validate_lead_names(ecg_data[1])
-            df_data = _numpy_to_dataframe(ecg_data[0], ecg_data[1])
-        elif (
-            isinstance(ecg_data, np.ndarray)
-            or (
-                isinstance(ecg_data, list)
-                and len(ecg_data) > 0
-                and all(isinstance(row, np.ndarray) for row in ecg_data)
-            )
-        ):
-            df_data = _numpy_to_dataframe(ecg_data)
-        elif isinstance(ecg_data, pd.DataFrame):
-            df_data = ecg_data
-        else:
-            raise ValueError(
-                "ecg_data must be a tuple of (list of numpy arrays, list of lead names), "
-                "a numpy array, a list of numpy arrays, or a pandas DataFrame"
-            )
-
-        # Compute stats using the utility function
-        stats_dict = _compute_ecg_stats(df_data, sampling_frequency, lead=lead)
-
-        return cls(**stats_dict)
 
 
 @dataclass
