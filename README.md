@@ -76,6 +76,19 @@ fig = plotter.plot(
 )
 ```
 
+### Lead Configurations
+
+The `configuration` parameter in `ECGPlotter.plot` defines how leads are arranged on the plot:
+
+- **`None` (default)**: Plots every lead present in the input DataFrame on its own row for its entire duration.
+- **Template string**: Use a predefined layout. Supported templates include:
+  - `1x1`, `1x2`, `1x3`, `1x4`, `1x6`, `1x8`, `1x12`: Single column where all leads are shown for their entire duration.
+  - `2x4`, `2x6`, `4x3`: Standard multi-column layouts. `nxm` means that there are `n` rows (plus strip leads) and `m` columns (segments).
+- **Custom list**: A list where each element represents a row:
+  - A **single string** (e.g., `['V5']` or `['I', 'II', 'III', 'V1']`): Each lead in the list is plotted on the corresponding row for its entire length.
+  - A **sub-list of strings** (e.g., `[['I', 'V1'], ['II', 'V2']]`): Leads in each sub-list are concatenated within that row. In this case, the first row would feature the first half of lead I, and the second half of lead V1. The second row would feature the first half of lead II and the second half of lead V2.
+  - **sub-list of strings and strings** (e.g., `[['I', 'V1'], ['II', 'V2'], 'III']`) are used to specify what should be in each row. Sub-lists specify what lead to print on each column of that row, while strings specify the strip leads.
+
 ### Customizing the Plotter
 
 The `ECGPlotter` class allows full control over the visual style:

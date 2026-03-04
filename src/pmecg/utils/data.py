@@ -173,13 +173,13 @@ def _apply_configuration(
         The DataFrame containing the ECG data, where each column corresponds to a
         lead and the column names are the names of the leads.
     configuration : list[list[str] | str] | str | None, optional
-        The plotting configuration to be applied. If a list of lists of strings is
-        provided, it indicates what leads are plotted in each row.
-        If a single lead string is provided, it indicates that only that lead should
-        be plotted for its entire duration. If the configuration is a string that
-        matches one of the keys in ``TEMPLATE_CONFIGURATIONS``, the corresponding
-        template configuration will be applied.
-        If None, all leads in the DataFrame are plotted for their entire duration.
+        The plotting configuration to be applied.
+        - If a list is provided, each element represents a row.
+          - If the element is a string, it is a lead plotted for its entire duration.
+          - If the element is a list of strings, those leads are concatenated in that row.
+        - If the configuration is a string that matches one of the keys in
+          ``TEMPLATE_CONFIGURATIONS``, the corresponding template is applied.
+        - If None, all leads in the DataFrame are plotted for their entire duration.
         By default None.
     disconnect_segments : bool, optional
         Passed through to :func:`_segment_leads`. By default True.
@@ -207,16 +207,14 @@ def _apply_configuration(
             )
 
     elif isinstance(configuration, list):
-        if all(isinstance(entry, str) for entry in configuration):
-            result.append(_segment_leads(df, configuration, disconnect_segments))
-        elif any(isinstance(entry, list) for entry in configuration):
-            for entry in configuration:
+        for entry in configuration:
+            if isinstance(entry, (str, list)):
                 result.append(_segment_leads(df, entry, disconnect_segments))
-        else:
-            raise ValueError(
-                "configuration list must contain either strings (lead names) "
-                "or sub-lists of strings (lead names for each row)"
-            )
+            else:
+                raise ValueError(
+                    "configuration list must contain either strings (lead names) "
+                    "or sub-lists of strings (lead names for each row)"
+                )
     else:
         raise ValueError("configuration must be either a string or a list of lists of strings")
 

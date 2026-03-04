@@ -135,19 +135,22 @@ def test_segment_leads_string_input():
 # _apply_configuration
 # ---------------------------------------------------------------------------
 
-# (config, expected_leads_per_row) — string entries in expected_leads_per_row
-# represent rhythm-strip rows whose returned leads list is [that_string].
+# (config, expected_leads_per_row) — each entry in expected_leads_per_row
+# represents a row in the final plot.
 APPLY_CONFIG_CASES = [
     pytest.param("V5", [["V5"]], id="single-lead"),
-    # 1xL template strings (single row each)
-    *[
-        pytest.param(key, [TEMPLATE_CONFIGURATIONS[key]], id=f"template-{key}")
-        for key in ONE_ROW_TEMPLATES
-    ],
+    # 1xL template strings: they now produce one row per lead
+    pytest.param("1x1", [["I"]], id="template-1x1"),
+    pytest.param("1x2", [["I"], ["II"]], id="template-1x2"),
+    pytest.param("1x3", [["I"], ["II"], ["V2"]], id="template-1x3"),
+    pytest.param("1x4", [["I"], ["II"], ["III"], ["V2"]], id="template-1x4"),
+    pytest.param("1x6", [["I"], ["II"], ["III"], ["AVR"], ["AVL"], ["AVF"]], id="template-1x6"),
+    pytest.param("1x8", [["I"], ["II"], ["V1"], ["V2"], ["V3"], ["V4"], ["V5"], ["V6"]], id="template-1x8"),
+    pytest.param("1x12", [["I"], ["II"], ["III"], ["AVR"], ["AVL"], ["AVF"], ["V1"], ["V2"], ["V3"], ["V4"], ["V5"], ["V6"]], id="template-1x12"),
     # multi-row template strings
-    pytest.param("4x3", TEMPLATE_CONFIGURATIONS["4x3"], id="template-4x3"),
-    pytest.param("2x4", TEMPLATE_CONFIGURATIONS["2x4"], id="template-2x4"),
-    pytest.param("2x6", TEMPLATE_CONFIGURATIONS["2x6"], id="template-2x6"),
+    pytest.param("4x3", [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], ['II']], id="template-4x3"),
+    pytest.param("2x4", [['I', 'V3'], ['II', 'V4'], ['III', 'V5'], ['AVR', 'V6'], ['II']], id="template-2x4"),
+    pytest.param("2x6", [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], ['II']], id="template-2x6"),
     # exotic list configs
     pytest.param(
         [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
