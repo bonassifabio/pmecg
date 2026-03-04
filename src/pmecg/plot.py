@@ -32,7 +32,7 @@ class ECGStats:
     """Computed ECG diagnostic statistics to be printed on the plot.
 
     All fields default to ``None`` (not shown). Any field that is set will be
-    displayed in the top-right corner when ``print_diagnostics=True``, arranged
+    displayed in the top-right corner when ``print_information=True``, arranged
     in columns of three rows.
 
     Parameters
@@ -175,7 +175,7 @@ class ECGPlotter:
         row_spacing: float = 2.0,
         line_width: float = 0.5,
         grid_color: str = '#f4aaaa',
-        print_diagnostics: bool = False,
+        print_information: bool = False,
         show_time_axis: bool = False,
         show_calibration: bool = True,
         show_leads_labels: bool = True,
@@ -200,7 +200,7 @@ class ECGPlotter:
         grid_color : str, optional
             Color of the grid lines. Any matplotlib color string is accepted (e.g. '#f4aaaa',
             'lightgray', 'gray'). By default '#f4aaaa' (light ECG-paper red).
-        print_diagnostics : bool, optional
+        print_information : bool, optional
             Whether to print diagnostic parameters (speed, voltage, sampling frequency,
             leads) and any extra metadata in the corners of the figure, by default False.
         show_time_axis : bool, optional
@@ -227,7 +227,7 @@ class ECGPlotter:
         self.row_spacing = row_spacing
         self.line_width = line_width
         self.grid_color = grid_color
-        self.print_diagnostics = print_diagnostics
+        self.print_information = print_information
         self.show_time_axis = show_time_axis
         self.show_calibration = show_calibration
         self.show_leads_labels = show_leads_labels
@@ -262,11 +262,11 @@ class ECGPlotter:
         show : bool, optional
             Whether to show the plot, by default True
         information : ECGInformation, optional
-            Patient and recording metadata. When ``self.print_diagnostics`` is True, the
+            Patient and recording metadata. When ``self.print_information`` is True, the
             hospital, patient name and date are printed above the first ECG row, and
             the machine model is printed in the bottom-right corner.
         stats : ECGStats, optional
-            Computed ECG statistics. When ``self.print_diagnostics`` is True, any
+            Computed ECG statistics. When ``self.print_information`` is True, any
             non-None field is printed in the top-right corner, arranged in columns
             of up to three rows.
 
@@ -318,12 +318,12 @@ class ECGPlotter:
         # Figure dimensions
         width_inches, height_inches = _compute_figure_size(
             n_rows, seq_len, sampling_frequency, self.speed, self.voltage, self.row_spacing,
-            print_diagnostics=self.print_diagnostics,
+            print_information=self.print_information,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
         y_offsets = _compute_row_offsets(
-            n_rows, height_inches, ctx.row_spacing_inches, self.print_diagnostics,
+            n_rows, height_inches, ctx.row_spacing_inches, self.print_information,
         )
 
         # Create figure with exact physical dimensions
@@ -363,7 +363,7 @@ class ECGPlotter:
         ax.spines["left"].set_visible(False)
         ax.yaxis.set_visible(False)
 
-        if self.print_diagnostics:
+        if self.print_information:
             original_leads = list(df_data.columns)
             first_row_top_inches = y_offsets[0] + ctx.row_spacing_inches / 2.0
             _print_information(

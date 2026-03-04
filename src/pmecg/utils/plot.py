@@ -9,8 +9,8 @@ import numpy as np
 
 MM_PER_INCH = 25.4
 MARGIN_MM = 5.0                       # margin above the first row, below the last row, and between rows
-DIAGNOSTICS_TOP_EXTRA_MARGIN_MM = 14.0 # extra top margin added when print_diagnostics=True
-DIAGNOSTICS_BOT_EXTRA_MARGIN_MM = 5.0 # extra bottom margin added when print_diagnostics=True
+INFO_TOP_EXTRA_MARGIN_MM = 14.0 # extra top margin added when print_information=True
+INFO_BOT_EXTRA_MARGIN_MM = 5.0 # extra bottom margin added when print_information=True
 LEFT_MARGIN_MM = 15.0                 # 1.5 cm left margin (accommodates calibration pulse)
 RIGHT_MARGIN_MM = 10.0                # 1 cm right margin
 
@@ -82,7 +82,7 @@ def _compute_figure_size(
     speed: float,
     voltage: float,
     row_spacing_mv: float,
-    print_diagnostics: bool = False,
+    print_information: bool = False,
 ) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
 
@@ -100,9 +100,9 @@ def _compute_figure_size(
         Vertical scale: mm per mV.
     row_spacing_mv : float
         Distance between consecutive row zero-lines, expressed in mV.
-    print_diagnostics : bool, optional
+    print_information : bool, optional
         When True, extra top and bottom margins are added to accommodate
-        the diagnostic/patient information text, by default False.
+        the patient information and statistics text, by default False.
 
     Returns
     -------
@@ -119,10 +119,10 @@ def _compute_figure_size(
     # --- Height ---
     # Each row is allocated row_spacing_mv * voltage mm of vertical space (centred on its zero line).
     # Add a top and bottom margin (MARGIN_MM each) to avoid clipping.
-    # When diagnostics are enabled, add extra space at top and bottom for the annotation text.
+    # When print_information is enabled, add extra space at top and bottom for the annotation text.
     row_spacing_mm = row_spacing_mv * voltage
-    top_extra_mm = DIAGNOSTICS_TOP_EXTRA_MARGIN_MM if print_diagnostics else 0.0
-    bot_extra_mm = DIAGNOSTICS_BOT_EXTRA_MARGIN_MM if print_diagnostics else 0.0
+    top_extra_mm = INFO_TOP_EXTRA_MARGIN_MM if print_information else 0.0
+    bot_extra_mm = INFO_BOT_EXTRA_MARGIN_MM if print_information else 0.0
     total_height_mm = n_rows * row_spacing_mm + 2 * MARGIN_MM + top_extra_mm + bot_extra_mm
     height_inches = total_height_mm / MM_PER_INCH
 
@@ -133,13 +133,13 @@ def _compute_row_offsets(
     n_rows: int,
     height_inches: float,
     row_spacing_inches: float,
-    print_diagnostics: bool = False,
+    print_information: bool = False,
 ) -> list[float]:
     """Pre-compute the vertical centre (zero-line position, in inches) for each ECG row.
 
     Rows are laid out top-to-bottom with a fixed spacing between zero-lines and a
     MARGIN_MM margin above the first row and below the last row. When
-    ``print_diagnostics`` is True the extra top margin is also accounted for so that
+    ``print_information`` is True the extra top margin is also accounted for so that
     the patient-info text can sit in the space above the first row.
 
     Parameters
@@ -150,16 +150,16 @@ def _compute_row_offsets(
         Total figure height in inches (as returned by `_compute_figure_size`).
     row_spacing_inches : float
         Distance between consecutive zero-lines in inches.
-    print_diagnostics : bool, optional
-        When True, include the extra top diagnostics margin when computing the
-        first row position, by default False.
+    print_information : bool, optional
+        When True, include the extra top margin when computing the first row
+        position, by default False.
 
     Returns
     -------
     list[float]
         y-coordinate (in inches from figure bottom) of the zero-line of each row.
     """
-    top_extra_mm = DIAGNOSTICS_TOP_EXTRA_MARGIN_MM if print_diagnostics else 0.0
+    top_extra_mm = INFO_TOP_EXTRA_MARGIN_MM if print_information else 0.0
     top_margin_inches = (MARGIN_MM + top_extra_mm) / MM_PER_INCH
     # First row zero-line sits half a spacing below the top margin.
     # (Rows are evenly spaced; the half-spacing gives equal room above row 0 and below last row.)
