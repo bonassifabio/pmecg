@@ -9,6 +9,7 @@ Files are only (over)written when their content has changed.
 """
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 import hashlib
@@ -18,7 +19,6 @@ from datetime import datetime
 
 import pandas as pd
 import pytest
-
 from ptbxl_helper import get_ptbxl_data
 
 from pmecg.plot import ECGInformation, ECGPlotter

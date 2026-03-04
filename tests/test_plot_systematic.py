@@ -20,16 +20,17 @@ All tests use synthetic ECG data so no network access is required.
 """
 
 import matplotlib
+
 matplotlib.use("Agg")  # non-interactive backend; must precede pyplot import
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-import matplotlib.pyplot as plt
 
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
-from pmecg.utils.plot import LEFT_MARGIN_MM, MM_PER_INCH, _compute_figure_size, _compute_row_offsets
 from pmecg.utils.data import TEMPLATE_CONFIGURATIONS
+from pmecg.utils.plot import LEFT_MARGIN_MM, MM_PER_INCH, _compute_figure_size, _compute_row_offsets
 
 # ── Shared test data ───────────────────────────────────────────────────────
 
@@ -61,9 +62,9 @@ def _grid_lines(ax):
     * axvline(x): xdata=[x, x]  ydata=[0, 1] (axes coords)
     * axhline(y): xdata=[0, 1]  ydata=[y, y] (data coords)
     """
-    two_pt = [l for l in ax.lines if len(l.get_xdata()) == 2]
-    vx = sorted(l.get_xdata()[0] for l in two_pt if l.get_xdata()[0] == l.get_xdata()[1])
-    hy = sorted(l.get_ydata()[0] for l in two_pt if l.get_ydata()[0] == l.get_ydata()[1])
+    two_pt = [ln for ln in ax.lines if len(ln.get_xdata()) == 2]
+    vx = sorted(ln.get_xdata()[0] for ln in two_pt if ln.get_xdata()[0] == ln.get_xdata()[1])
+    hy = sorted(ln.get_ydata()[0] for ln in two_pt if ln.get_ydata()[0] == ln.get_ydata()[1])
     return vx, hy
 
 
@@ -162,14 +163,14 @@ def test_grid_major_spacing(ecg_df):
     fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False)
     try:
         ax = _ax(fig)
-        two_pt = [l for l in ax.lines if len(l.get_xdata()) == 2]
+        two_pt = [ln for ln in ax.lines if len(ln.get_xdata()) == 2]
         major_vx = sorted(
-            l.get_xdata()[0] for l in two_pt
-            if l.get_xdata()[0] == l.get_xdata()[1] and abs(l.get_linewidth() - major_lw) < 0.01
+            ln.get_xdata()[0] for ln in two_pt
+            if ln.get_xdata()[0] == ln.get_xdata()[1] and abs(ln.get_linewidth() - major_lw) < 0.01
         )
         major_hy = sorted(
-            l.get_ydata()[0] for l in two_pt
-            if l.get_ydata()[0] == l.get_ydata()[1] and abs(l.get_linewidth() - major_lw) < 0.01
+            ln.get_ydata()[0] for ln in two_pt
+            if ln.get_ydata()[0] == ln.get_ydata()[1] and abs(ln.get_linewidth() - major_lw) < 0.01
         )
         major_step = 5.0 / MM_PER_INCH  # 5 mm in inches
         assert np.allclose(np.diff(major_vx), major_step, atol=1e-9), "Major vertical grid spacing ≠ 5 mm"
@@ -547,8 +548,8 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
     try:
         # Signal lines: len(xdata) == N_SAMPLES and start exactly at the left margin
         signal_lines = [
-            l for l in _ax(fig).lines
-            if len(l.get_xdata()) == N_SAMPLES and abs(l.get_xdata()[0] - left_margin_in) < 1e-9
+            ln for ln in _ax(fig).lines
+            if len(ln.get_xdata()) == N_SAMPLES and abs(ln.get_xdata()[0] - left_margin_in) < 1e-9
         ]
         assert len(signal_lines) == n_rows, f"Expected {n_rows} signal lines, got {len(signal_lines)}"
         for line in signal_lines:
