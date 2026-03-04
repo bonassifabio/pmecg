@@ -96,5 +96,5 @@ def test_ptbxl_plot_saved(ecg_id, configuration):
             assert os.path.getsize(path) > 0, f"Output file is empty: {path}"
     finally:
         import matplotlib.pyplot as plt
-        plt.close(fig)
 
+        plt.close(fig)

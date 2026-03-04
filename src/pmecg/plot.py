@@ -59,6 +59,7 @@ class ECGStats:
     t_axis_deg : float, optional
         T-wave axis in degrees.
     """
+
     bpm: float | None = None
     snr: float | None = None
     rr_interval_ms: float | None = None
@@ -93,6 +94,7 @@ class ECGInformation:
     filter : str, optional
         Description of the filter(s) applied to the ECG (e.g. "0.05-150 Hz").
     """
+
     hospital: str | None = None
     patient_name: str | None = None
     age: int | None = None
@@ -100,6 +102,7 @@ class ECGInformation:
     date: str | None = None
     machine_model: str | None = None
     filter: str | None = None
+
 
 ECGDataType = Union[
     tuple[Union[list[np.ndarray], np.ndarray], list[str]],
@@ -109,15 +112,14 @@ ConfigurationDataType = Union[list[Union[list[str], str]], str]
 
 
 class ECGPlotter:
-
     def __init__(
         self,
-        grid_mode: Literal['cm'] | None = 'cm',
+        grid_mode: Literal["cm"] | None = "cm",
         speed: float = 50.0,
         voltage: float = 20.0,
         row_spacing: float = 2.0,
         line_width: float = 0.5,
-        grid_color: str = '#f4aaaa',
+        grid_color: str = "#f4aaaa",
         print_information: bool = False,
         show_time_axis: bool = False,
         show_calibration: bool = True,
@@ -157,7 +159,7 @@ class ECGPlotter:
             If True, the last sample of each segment is set to NaN so that adjacent
             segments are not visually connected in the plot. By default True.
         """
-        assert grid_mode in (None, 'cm'), "grid_mode must be None or 'cm'"
+        assert grid_mode in (None, "cm"), "grid_mode must be None or 'cm'"
         assert isinstance(speed, (int, float)) and speed > 0, "speed must be a positive number"
         assert isinstance(voltage, (int, float)) and voltage > 0, "voltage must be a positive number"
         assert isinstance(row_spacing, (int, float)) and row_spacing > 0, "row_spacing must be a positive number"
@@ -176,13 +178,15 @@ class ECGPlotter:
         self.show_leads_labels = show_leads_labels
         self.disconnect_segments = disconnect_segments
 
-    def plot(self,
-             ecg_data: ECGDataType,
-             configuration: ConfigurationDataType | None = None,
-             sampling_frequency: float = 500.0,
-             show: bool = True,
-             information: ECGInformation | None = None,
-             stats: ECGStats | None = None) -> Figure:
+    def plot(
+        self,
+        ecg_data: ECGDataType,
+        configuration: ConfigurationDataType | None = None,
+        sampling_frequency: float = 500.0,
+        show: bool = True,
+        information: ECGInformation | None = None,
+        stats: ECGStats | None = None,
+    ) -> Figure:
         """Plot the ECG in `ecg_data` using the plotting configuration specified in `configuration`.
 
         Parameters
@@ -223,13 +227,8 @@ class ECGPlotter:
         if isinstance(ecg_data, tuple):
             _validate_lead_names(ecg_data[1])
             df_data = _numpy_to_dataframe(ecg_data[0], ecg_data[1])
-        elif (
-            isinstance(ecg_data, np.ndarray)
-            or (
-                isinstance(ecg_data, list)
-                and len(ecg_data) > 0
-                and all(isinstance(row, np.ndarray) for row in ecg_data)
-            )
+        elif isinstance(ecg_data, np.ndarray) or (
+            isinstance(ecg_data, list) and len(ecg_data) > 0 and all(isinstance(row, np.ndarray) for row in ecg_data)
         ):
             df_data = _numpy_to_dataframe(ecg_data)
         elif isinstance(ecg_data, pd.DataFrame):
@@ -262,13 +261,21 @@ class ECGPlotter:
 
         # Figure dimensions
         width_inches, height_inches = _compute_figure_size(
-            n_rows, seq_len, sampling_frequency, self.speed, self.voltage, self.row_spacing,
+            n_rows,
+            seq_len,
+            sampling_frequency,
+            self.speed,
+            self.voltage,
+            self.row_spacing,
             print_information=self.print_information,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
         y_offsets = _compute_row_offsets(
-            n_rows, height_inches, ctx.row_spacing_inches, self.print_information,
+            n_rows,
+            height_inches,
+            ctx.row_spacing_inches,
+            self.print_information,
         )
 
         # Create figure with exact physical dimensions

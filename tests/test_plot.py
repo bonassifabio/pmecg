@@ -18,14 +18,14 @@ sampling_freq = record.fs
 
 ecg_info = ECGInformation(
     # patient_name="John Doe",
-    age=metadata['age'],
-    sex=metadata['sex'],
-    date=metadata['date'],
+    age=metadata["age"],
+    sex=metadata["sex"],
+    date=metadata["date"],
     machine_model="PTB-XL ECG Machine",
     filter="Some filter",
 )
 
 custom_configuration = record.sig_name
-ECGPlotter(grid_mode='cm', print_information=True).plot(
+ECGPlotter(grid_mode="cm", print_information=True).plot(
     df, custom_configuration, sampling_frequency=sampling_freq, show=True, information=ecg_info, stats=stats
 )

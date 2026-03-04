@@ -55,9 +55,7 @@ def _filter_ptbxlplus_features(features_dict: dict[str, Any]) -> ECGStats:
     )
 
 
-def get_ptbxl_data(
-    ecg_id: int, fs: int = 500
-) -> tuple[wfdb.Record, dict[str, Any], ECGStats]:
+def get_ptbxl_data(ecg_id: int, fs: int = 500) -> tuple[wfdb.Record, dict[str, Any], ECGStats]:
     _ensure_cache()
 
     folder = (ecg_id // 1000) * 1000

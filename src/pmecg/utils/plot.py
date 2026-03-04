@@ -8,15 +8,15 @@ import matplotlib.axes
 import numpy as np
 
 MM_PER_INCH = 25.4
-MARGIN_MM = 5.0                       # margin above the first row, below the last row, and between rows
-INFO_TOP_EXTRA_MARGIN_MM = 14.0 # extra top margin added when print_information=True
-INFO_BOT_EXTRA_MARGIN_MM = 5.0 # extra bottom margin added when print_information=True
-LEFT_MARGIN_MM = 15.0                 # 1.5 cm left margin (accommodates calibration pulse)
-RIGHT_MARGIN_MM = 10.0                # 1 cm right margin
+MARGIN_MM = 5.0  # margin above the first row, below the last row, and between rows
+INFO_TOP_EXTRA_MARGIN_MM = 14.0  # extra top margin added when print_information=True
+INFO_BOT_EXTRA_MARGIN_MM = 5.0  # extra bottom margin added when print_information=True
+LEFT_MARGIN_MM = 15.0  # 1.5 cm left margin (accommodates calibration pulse)
+RIGHT_MARGIN_MM = 10.0  # 1 cm right margin
 
 # Calibration pulse dimensions
-CAL_PULSE_WIDTH_MM = 5.0   # 1 large square wide
-CAL_PULSE_AMP_MV = 1.0     # standard 1 mV amplitude
+CAL_PULSE_WIDTH_MM = 5.0  # 1 large square wide
+CAL_PULSE_AMP_MV = 1.0  # standard 1 mV amplitude
 CAL_PULSE_OFFSET_MM = 3.0  # gap from left figure edge to the rising edge
 
 
@@ -196,8 +196,8 @@ def _plot_calibration_pulse(
     x_signal = LEFT_MARGIN_MM / MM_PER_INCH
     amp = CAL_PULSE_AMP_MV * ctx.mv_to_inches
 
-    xs = [0.0,      x0,             x0,             x1,             x1,      x_signal]
-    ys = [y_offset, y_offset,       y_offset + amp, y_offset + amp, y_offset, y_offset]
+    xs = [0.0, x0, x0, x1, x1, x_signal]
+    ys = [y_offset, y_offset, y_offset + amp, y_offset + amp, y_offset, y_offset]
     ax.plot(xs, ys, color="black", linewidth=ctx.line_width)
 
     # Label centred above the top of the pulse
@@ -261,7 +261,7 @@ def _plot_row(
 
 def _plot_grid(
     ax: matplotlib.axes.Axes,
-    grid_mode: Literal['cm'],
+    grid_mode: Literal["cm"],
     width_inches: float,
     height_inches: float,
     ctx: _RenderContext,
@@ -282,7 +282,7 @@ def _plot_grid(
     ctx : _RenderContext
         Rendering context; ``ctx.grid_color`` sets the line colour.
     """
-    if grid_mode == 'inch':
+    if grid_mode == "inch":
         raise NotImplementedError("'inch' grid mode is not supported. Use 'cm' or None.")
     step = 1.0 / MM_PER_INCH  # 0.1 cm = 1 mm expressed in inches
 
@@ -363,8 +363,7 @@ def _print_information(
 
     # --- Bottom-right: machine model ---
     if information is not None and getattr(information, "machine_model", None):
-        ax.text(x_right, bottom_margin, information.machine_model,
-                va="bottom", ha="right", zorder=5, **font)
+        ax.text(x_right, bottom_margin, information.machine_model, va="bottom", ha="right", zorder=5, **font)
 
     # --- Top-left: patient / recording info, anchored just above the first ECG row ---
     if information is not None:
@@ -397,27 +396,27 @@ def _print_information(
     if stats is not None:
         stat_items: list[tuple[str, str]] = []
         if stats.bpm is not None:
-            stat_items.append(("BPM",     f"{stats.bpm:.0f}"))
+            stat_items.append(("BPM", f"{stats.bpm:.0f}"))
         if stats.snr is not None:
-            stat_items.append(("S/N",     f"{stats.snr:.1f} dB"))
+            stat_items.append(("S/N", f"{stats.snr:.1f} dB"))
         if stats.rr_interval_ms is not None:
-            stat_items.append(("RR",      f"{stats.rr_interval_ms:.0f} ms"))
+            stat_items.append(("RR", f"{stats.rr_interval_ms:.0f} ms"))
         if stats.hrv_ms is not None:
-            stat_items.append(("HRV",     f"{stats.hrv_ms:.0f} ms"))
+            stat_items.append(("HRV", f"{stats.hrv_ms:.0f} ms"))
         if stats.pr_interval_ms is not None:
-            stat_items.append(("PR",      f"{stats.pr_interval_ms:.0f} ms"))
+            stat_items.append(("PR", f"{stats.pr_interval_ms:.0f} ms"))
         if stats.qrs_duration_ms is not None:
-            stat_items.append(("QRS",     f"{stats.qrs_duration_ms:.0f} ms"))
+            stat_items.append(("QRS", f"{stats.qrs_duration_ms:.0f} ms"))
         if stats.qt_interval_ms is not None:
-            stat_items.append(("QT",      f"{stats.qt_interval_ms:.0f} ms"))
+            stat_items.append(("QT", f"{stats.qt_interval_ms:.0f} ms"))
         if stats.qtc_interval_ms is not None:
-            stat_items.append(("QTc",     f"{stats.qtc_interval_ms:.0f} ms"))
+            stat_items.append(("QTc", f"{stats.qtc_interval_ms:.0f} ms"))
         if stats.p_axis_deg is not None:
-            stat_items.append(("P ax.",   f"{stats.p_axis_deg:.0f}\u00b0"))
+            stat_items.append(("P ax.", f"{stats.p_axis_deg:.0f}\u00b0"))
         if stats.qrs_axis_deg is not None:
             stat_items.append(("QRS ax.", f"{stats.qrs_axis_deg:.0f}\u00b0"))
         if stats.t_axis_deg is not None:
-            stat_items.append(("T ax.",   f"{stats.t_axis_deg:.0f}\u00b0"))
+            stat_items.append(("T ax.", f"{stats.t_axis_deg:.0f}\u00b0"))
 
         if stat_items:
             n_cols = ceil(len(stat_items) / 3)
@@ -436,8 +435,8 @@ def _print_information(
             y_base = first_row_top_inches + 5.0 / MM_PER_INCH
 
             for i, cell in enumerate(cells):
-                col = i // 3   # column index (0 = leftmost)
-                row = i % 3    # row index   (0 = top)
+                col = i // 3  # column index (0 = leftmost)
+                row = i % 3  # row index   (0 = top)
                 x = x_right - (n_cols - col) * col_width
                 y = y_base + (2 - row) * line_height
                 ax.text(x, y, cell, va="bottom", ha="left", zorder=5, **font)

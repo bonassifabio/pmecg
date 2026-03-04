@@ -7,17 +7,18 @@ import pandas as pd
 
 SUPPORTED_LEADS = ("I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6")
 TEMPLATE_CONFIGURATIONS = {
-    '1x1': ['I'],
-    '1x2': ['I', 'II'],
-    '1x3': ['I', 'II', 'V2'],
-    '1x4': ['I', 'II', 'III', 'V2'],
-    '1x6': ['I', 'II', 'III', 'AVR', 'AVL', 'AVF'],
-    '1x8': ['I', 'II', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
-    '1x12': ['I', 'II', 'III', 'AVR', 'AVL', 'AVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'],
-    '2x4': [['I', 'V3'], ['II', 'V4'], ['III', 'V5'], ['AVR', 'V6'], 'II'],
-    '2x6': [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], 'II'],
-    '4x3': [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], 'II']
+    "1x1": ["I"],
+    "1x2": ["I", "II"],
+    "1x3": ["I", "II", "V2"],
+    "1x4": ["I", "II", "III", "V2"],
+    "1x6": ["I", "II", "III", "AVR", "AVL", "AVF"],
+    "1x8": ["I", "II", "V1", "V2", "V3", "V4", "V5", "V6"],
+    "1x12": ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+    "2x4": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"], "II"],
+    "2x6": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
+    "4x3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II"],
 }
+
 
 def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = None) -> pd.DataFrame:
     """Convert ECG data in numpy array format to a pandas DataFrame.
@@ -44,29 +45,25 @@ def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = Non
         )
         if lead_names is None:
             assert ecg_data.shape[1] == len(SUPPORTED_LEADS), (
-                "If lead_names is not provided, ecg_data must have the same number "
-                "of leads as the standard 12 leads"
+                "If lead_names is not provided, ecg_data must have the same number of leads as the standard 12 leads"
             )
             # Deep copy of leads names
             lead_names = [str(lead) for lead in SUPPORTED_LEADS]
         else:
             assert ecg_data.shape[1] == len(lead_names), (
-                "The number of leads in ecg_data must match the number of lead names "
-                "provided in lead_names"
+                "The number of leads in ecg_data must match the number of lead names provided in lead_names"
             )
 
     elif isinstance(ecg_data, list) and len(ecg_data) > 0 and all(isinstance(row, np.ndarray) for row in ecg_data):
         if lead_names is None:
             assert len(ecg_data) == len(SUPPORTED_LEADS), (
-                "If lead_names is not provided, ecg_data must have the same number "
-                "of leads as the standard 12 leads"
+                "If lead_names is not provided, ecg_data must have the same number of leads as the standard 12 leads"
             )
             # Deep copy of leads names
             lead_names = [str(lead) for lead in SUPPORTED_LEADS]
         else:
             assert len(lead_names) == len(ecg_data), (
-                "The number of leads in ecg_data must match the number of lead names "
-                "provided in lead_names"
+                "The number of leads in ecg_data must match the number of lead names provided in lead_names"
             )
 
         assert all(arr.shape[0] == ecg_data[0].shape[0] for arr in ecg_data), "All arrays in ecg_data must have the same length"
@@ -97,14 +94,12 @@ def _validate_lead_names(lead_name: str | list[str]) -> None:
         for name in lead_name:
             if name.upper() not in SUPPORTED_LEADS:
                 raise ValueError(
-                    f"Lead name '{name}' in configuration is not supported. "
-                    f"Supported leads are: {SUPPORTED_LEADS}"
+                    f"Lead name '{name}' in configuration is not supported. Supported leads are: {SUPPORTED_LEADS}"
                 )
     else:
         if lead_name.upper() not in SUPPORTED_LEADS:
             raise ValueError(
-                f"Lead name '{lead_name}' in configuration is not supported. "
-                f"Supported leads are: {SUPPORTED_LEADS}"
+                f"Lead name '{lead_name}' in configuration is not supported. Supported leads are: {SUPPORTED_LEADS}"
             )
 
 
@@ -139,7 +134,7 @@ def _segment_leads(
         # Ensure we can handle the case where selected_leads is a single string instead of a list of strings
         selected_leads = [selected_leads]
 
-    signal = np.full((df.shape[0], ), np.nan)
+    signal = np.full((df.shape[0],), np.nan)
     segment_len = df.shape[0] // len(selected_leads)
 
     if df.shape[0] != len(selected_leads) * segment_len:

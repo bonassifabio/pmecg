@@ -153,12 +153,12 @@ APPLY_CONFIG_CASES = [
     ),
     # multi-row template strings
     pytest.param(
-        "4x3", [['I', 'AVR', 'V1', 'V4'], ['II', 'AVL', 'V2', 'V5'], ['III', 'AVF', 'V3', 'V6'], ['II']], id="template-4x3"
+        "4x3", [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], ["II"]], id="template-4x3"
     ),
-    pytest.param("2x4", [['I', 'V3'], ['II', 'V4'], ['III', 'V5'], ['AVR', 'V6'], ['II']], id="template-2x4"),
+    pytest.param("2x4", [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"], ["II"]], id="template-2x4"),
     pytest.param(
         "2x6",
-        [['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['AVR', 'V4'], ['AVL', 'V5'], ['AVF', 'V6'], ['II']],
+        [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], ["II"]],
         id="template-2x6",
     ),
     # exotic list configs
