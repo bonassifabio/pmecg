@@ -210,24 +210,64 @@ def test_time_axis_visibility(ecg_df, show_time_axis):
 
 # ── Lead labels ────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("show_leads_labels,configuration,expected_labels", [
-    (True,  ["I", "II", "III"],             ["I", "II", "III"]),
-    (False, ["I", "II", "III"],             []),
-    (True,  [["I", "II"], ["III", "AVR"]],  ["I", "II", "III", "AVR"]),
-    (False, [["I", "II"], ["III", "AVR"]],  []),
-])
-def test_lead_labels(ecg_df, show_leads_labels, configuration, expected_labels):
+# 1xL keys: flat-list templates (no split rows) whose leads form the "source" DataFrame.
+_ONE_X_L_KEYS = [
+    k for k, v in TEMPLATE_CONFIGURATIONS.items()
+    if all(isinstance(e, str) for e in v)
+]
+
+
+def _template_unique_leads(template_key: str) -> list[str]:
+    """Return deduplicated leads referenced by a template (order-preserving)."""
+    seen: dict[str, None] = {}
+    for entry in TEMPLATE_CONFIGURATIONS[template_key]:
+        for lead in ([entry] if isinstance(entry, str) else entry):
+            seen[lead] = None
+    return list(seen)
+
+
+@pytest.mark.parametrize("show_leads_labels", [True, False])
+@pytest.mark.parametrize("plot_key", list(TEMPLATE_CONFIGURATIONS.keys()))
+@pytest.mark.parametrize("source_key", _ONE_X_L_KEYS)
+def test_lead_labels(source_key, plot_key, show_leads_labels):
+    """Lead labels are rendered iff show_leads_labels=True; missing leads raise an error.
+
+    For every 1xL source configuration (DataFrame restricted to that template's leads)
+    and every plot template:
+    * If the template only references leads present in the source DataFrame → plot()
+      must succeed; labels appear or are absent according to show_leads_labels.
+    * If the template references any lead absent from the source DataFrame → plot()
+      must raise a KeyError (pandas column access) regardless of show_leads_labels.
+    """
+    source_leads = list(TEMPLATE_CONFIGURATIONS[source_key])
+    rng = np.random.default_rng(42)
+    data = rng.standard_normal((N_SAMPLES, len(source_leads))) * 0.5
+    df = pd.DataFrame(data, columns=source_leads)
+
+    plot_leads = _template_unique_leads(plot_key)
+    template_fits = set(plot_leads).issubset(set(source_leads))
+
     plotter = ECGPlotter(
         grid_mode=None, print_information=False, show_leads_labels=show_leads_labels
     )
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+
+    if not template_fits:
+        with pytest.raises(KeyError):
+            plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
+        return
+
+    fig = plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
     try:
         texts = _texts(fig)
-        for lead in expected_labels:
-            assert lead in texts, f"Expected lead label '{lead}' in texts; got {texts}"
-        if not show_leads_labels:
+        if show_leads_labels:
+            for lead in plot_leads:
+                assert lead in texts, (
+                    f"[{source_key} → {plot_key}] Expected label '{lead}' in texts; got {texts}"
+                )
+        else:
             assert not any(t in LEAD_NAMES for t in texts), (
-                f"Unexpected lead labels found when show_leads_labels=False: {texts}"
+                f"[{source_key} → {plot_key}] Unexpected lead labels with "
+                f"show_leads_labels=False: {texts}"
             )
     finally:
         plt.close(fig)
