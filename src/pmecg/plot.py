@@ -177,6 +177,7 @@ class ECGPlotter:
         grid_color: str = '#f4aaaa',
         print_diagnostics: bool = False,
         show_time_axis: bool = False,
+        show_calibration: bool = True,
         disconnect_segments: bool = True,
     ):
         """The ECGPlotter class can be used to generate plots for multiple ECGs using the same plotting configuration.
@@ -204,6 +205,8 @@ class ECGPlotter:
         show_time_axis : bool, optional
             Whether to show the time axis (x-axis ticks and spine) at the bottom of the
             figure, by default False.
+        show_calibration : bool, optional
+            Whether to show the calibration pulse in the left margin of each row, by default True.
         disconnect_segments : bool, optional
             If True, the last sample of each segment is set to NaN so that adjacent
             segments are not visually connected in the plot. By default True.
@@ -223,6 +226,7 @@ class ECGPlotter:
         self.grid_color = grid_color
         self.print_diagnostics = print_diagnostics
         self.show_time_axis = show_time_axis
+        self.show_calibration = show_calibration
         self.disconnect_segments = disconnect_segments
 
     def plot(self,
@@ -303,6 +307,7 @@ class ECGPlotter:
             grid_color=self.grid_color,
             speed=self.speed,
             voltage=self.voltage,
+            show_calibration=self.show_calibration,
         )
 
         # Figure dimensions

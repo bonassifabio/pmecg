@@ -53,6 +53,7 @@ class _RenderContext:
     grid_color: str
     speed: float
     voltage: float
+    show_calibration: bool
 
 
 def _nice_tick_step(total_time_s: float) -> float:
@@ -236,7 +237,8 @@ def _plot_row(
 
     ax.plot(x, y, color="black", linewidth=ctx.line_width)
 
-    _plot_calibration_pulse(ax, ctx, y_offset)
+    if ctx.show_calibration:
+        _plot_calibration_pulse(ax, ctx, y_offset)
 
     # --- Labels ---
     # Each lead occupies an equal segment of the total sample length.
