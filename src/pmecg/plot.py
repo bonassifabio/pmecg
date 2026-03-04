@@ -148,6 +148,10 @@ class ECGInformation:
         Name of the hospital or clinic where the ECG was recorded.
     patient_name : str, optional
         Name of the patient.
+    age : int, optional
+        Age of the patient in years.
+    sex : str, optional
+        Sex of the patient (e.g. "Male", "Female").
     date : str, optional
         Date of the recording (any human-readable format, e.g. "2024-01-15").
     machine_model : str, optional
@@ -157,6 +161,8 @@ class ECGInformation:
     """
     hospital: str | None = None
     patient_name: str | None = None
+    age: int | None = None
+    sex: str | None = None
     date: str | None = None
     machine_model: str | None = None
     filter: str | None = None

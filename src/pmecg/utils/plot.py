@@ -367,8 +367,20 @@ def _print_information(
         info_lines: list[str] = []
         if getattr(information, "hospital", None):
             info_lines.append(f"Hospital: {information.hospital}")
+
+        # Patient name, sex, age
+        patient_line = ""
         if getattr(information, "patient_name", None):
-            info_lines.append(f"Patient:  {information.patient_name}")
+            patient_line = f"Patient:  {information.patient_name}"
+        if getattr(information, "sex", None):
+            prefix = ", " if patient_line else "Patient:  "
+            patient_line += f"{prefix}{information.sex}"
+        if getattr(information, "age", None):
+            prefix = ", " if patient_line else "Patient:  "
+            patient_line += f"{prefix}{information.age} yrs"
+        if patient_line:
+            info_lines.append(patient_line)
+
         if getattr(information, "date", None):
             info_lines.append(f"Date:     {information.date}")
         # y_base sits 5 mm above the first row's top edge; lines stack upward
