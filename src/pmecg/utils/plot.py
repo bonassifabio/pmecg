@@ -19,17 +19,17 @@ CAL_PULSE_WIDTH_MM = 5.0  # 1 large square wide
 CAL_PULSE_AMP_MV = 1.0  # standard 1 mV amplitude
 CAL_PULSE_OFFSET_MM = 3.0  # gap from left figure edge to the rising edge
 _STAT_FORMATTERS: tuple[tuple[str, str, str], ...] = (
-    ("bpm", "BPM", ".0f"),
-    ("snr", "S/N", ".1f dB"),
-    ("rr_interval_ms", "RR", ".0f ms"),
-    ("hrv_ms", "HRV", ".0f ms"),
-    ("pr_interval_ms", "PR", ".0f ms"),
-    ("qrs_duration_ms", "QRS", ".0f ms"),
-    ("qt_interval_ms", "QT", ".0f ms"),
-    ("qtc_interval_ms", "QTc", ".0f ms"),
-    ("p_axis_deg", "P ax.", ".0f°"),
-    ("qrs_axis_deg", "QRS ax.", ".0f°"),
-    ("t_axis_deg", "T ax.", ".0f°"),
+    ("bpm", "BPM", "{value:.0f}"),
+    ("snr", "S/N", "{value:.1f} dB"),
+    ("rr_interval_ms", "RR", "{value:.0f} ms"),
+    ("hrv_ms", "HRV", "{value:.0f} ms"),
+    ("pr_interval_ms", "PR", "{value:.0f} ms"),
+    ("qrs_duration_ms", "QRS", "{value:.0f} ms"),
+    ("qt_interval_ms", "QT", "{value:.0f} ms"),
+    ("qtc_interval_ms", "QTc", "{value:.0f} ms"),
+    ("p_axis_deg", "P ax.", "{value:.0f}°"),
+    ("qrs_axis_deg", "QRS ax.", "{value:.0f}°"),
+    ("t_axis_deg", "T ax.", "{value:.0f}°"),
 )
 
 
@@ -447,7 +447,7 @@ def _print_information(
     # --- Top-right: ECG statistics grid ---
     if stats is not None:
         stat_items = [
-            (label, format(getattr(stats, attr_name), fmt))
+            (label, fmt.format(value=getattr(stats, attr_name)))
             for attr_name, label, fmt in _STAT_FORMATTERS
             if getattr(stats, attr_name) is not None
         ]
