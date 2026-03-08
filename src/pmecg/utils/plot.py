@@ -18,6 +18,19 @@ RIGHT_MARGIN_MM = 10.0  # 1 cm right margin
 CAL_PULSE_WIDTH_MM = 5.0  # 1 large square wide
 CAL_PULSE_AMP_MV = 1.0  # standard 1 mV amplitude
 CAL_PULSE_OFFSET_MM = 3.0  # gap from left figure edge to the rising edge
+_STAT_FORMATTERS: tuple[tuple[str, str, str], ...] = (
+    ("bpm", "BPM", ".0f"),
+    ("snr", "S/N", ".1f dB"),
+    ("rr_interval_ms", "RR", ".0f ms"),
+    ("hrv_ms", "HRV", ".0f ms"),
+    ("pr_interval_ms", "PR", ".0f ms"),
+    ("qrs_duration_ms", "QRS", ".0f ms"),
+    ("qt_interval_ms", "QT", ".0f ms"),
+    ("qtc_interval_ms", "QTc", ".0f ms"),
+    ("p_axis_deg", "P ax.", ".0f°"),
+    ("qrs_axis_deg", "QRS ax.", ".0f°"),
+    ("t_axis_deg", "T ax.", ".0f°"),
+)
 
 
 @dataclass
@@ -433,29 +446,11 @@ def _print_information(
 
     # --- Top-right: ECG statistics grid ---
     if stats is not None:
-        stat_items: list[tuple[str, str]] = []
-        if stats.bpm is not None:
-            stat_items.append(("BPM", f"{stats.bpm:.0f}"))
-        if stats.snr is not None:
-            stat_items.append(("S/N", f"{stats.snr:.1f} dB"))
-        if stats.rr_interval_ms is not None:
-            stat_items.append(("RR", f"{stats.rr_interval_ms:.0f} ms"))
-        if stats.hrv_ms is not None:
-            stat_items.append(("HRV", f"{stats.hrv_ms:.0f} ms"))
-        if stats.pr_interval_ms is not None:
-            stat_items.append(("PR", f"{stats.pr_interval_ms:.0f} ms"))
-        if stats.qrs_duration_ms is not None:
-            stat_items.append(("QRS", f"{stats.qrs_duration_ms:.0f} ms"))
-        if stats.qt_interval_ms is not None:
-            stat_items.append(("QT", f"{stats.qt_interval_ms:.0f} ms"))
-        if stats.qtc_interval_ms is not None:
-            stat_items.append(("QTc", f"{stats.qtc_interval_ms:.0f} ms"))
-        if stats.p_axis_deg is not None:
-            stat_items.append(("P ax.", f"{stats.p_axis_deg:.0f}\u00b0"))
-        if stats.qrs_axis_deg is not None:
-            stat_items.append(("QRS ax.", f"{stats.qrs_axis_deg:.0f}\u00b0"))
-        if stats.t_axis_deg is not None:
-            stat_items.append(("T ax.", f"{stats.t_axis_deg:.0f}\u00b0"))
+        stat_items = [
+            (label, format(getattr(stats, attr_name), fmt))
+            for attr_name, label, fmt in _STAT_FORMATTERS
+            if getattr(stats, attr_name) is not None
+        ]
 
         if stat_items:
             n_cols = ceil(len(stat_items) / 3)
