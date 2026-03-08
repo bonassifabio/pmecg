@@ -10,7 +10,7 @@ import numpy as np
 MM_PER_INCH = 25.4
 MARGIN_MM = 5.0  # margin above the first row, below the last row, and between rows
 INFO_TOP_EXTRA_MARGIN_MM = 14.0  # extra top margin added when print_information=True
-INFO_BOT_EXTRA_MARGIN_MM = 5.0  # extra bottom margin added when print_information=True
+INFO_BOT_EXTRA_MARGIN_MM = 8.0  # extra bottom margin added when print_information=True
 LEFT_MARGIN_MM = 15.0  # 1.5 cm left margin (accommodates calibration pulse)
 RIGHT_MARGIN_MM = 10.0  # 1 cm right margin
 
@@ -34,7 +34,7 @@ class _RenderContext:
     time_to_inches : float
         Conversion factor: 1 sample → inches
         (= ``speed / (sampling_frequency * MM_PER_INCH)``).
-    row_spacing_inches : float
+    row_distance_inches : float
         Distance between consecutive row zero-lines in inches.
     line_width : float
         Thickness of ECG signal lines in points.
@@ -52,7 +52,7 @@ class _RenderContext:
 
     mv_to_inches: float
     time_to_inches: float
-    row_spacing_inches: float
+    row_distance_inches: float
     line_width: float
     grid_color: str
     speed: float
@@ -79,13 +79,36 @@ def _nice_tick_step(total_time_s: float) -> float:
     return nice * magnitude
 
 
+def _adjust_row_distance(row_distance: float, voltage: float) -> float:
+    """Adjust row_distance so that it is a multiple of 5 mm in vertical space.
+
+    Rounding is applied to avoid float precision issues before the ceiling
+    operation.
+
+    Parameters
+    ----------
+    row_distance : float
+        The distance between rows in mV.
+    voltage : float
+        Vertical scale: mm per mV.
+
+    Returns
+    -------
+    float
+        Adjusted row distance in mV.
+    """
+    row_distance_mm = np.round(row_distance * voltage, decimals=5)
+    row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
+    return row_distance_mm / voltage
+
+
 def _compute_figure_size(
     n_rows: int,
     seq_len: int,
     sampling_frequency: float,
     speed: float,
     voltage: float,
-    row_spacing_mv: float,
+    row_distance_mv: float,
     print_information: bool = False,
 ) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
@@ -102,7 +125,7 @@ def _compute_figure_size(
         Paper speed in mm/s.
     voltage : float
         Vertical scale: mm per mV.
-    row_spacing_mv : float
+    row_distance_mv : float
         Distance between consecutive row zero-lines, expressed in mV.
     print_information : bool, optional
         When True, extra top and bottom margins are added to accommodate
@@ -121,13 +144,21 @@ def _compute_figure_size(
     width_inches = width_mm / MM_PER_INCH
 
     # --- Height ---
-    # Each row is allocated row_spacing_mv * voltage mm of vertical space (centred on its zero line).
+    # Each row is allocated row_distance_mv * voltage mm of vertical space (centred on its zero line).
     # Add a top and bottom margin (MARGIN_MM each) to avoid clipping.
     # When print_information is enabled, add extra space at top and bottom for the annotation text.
-    row_spacing_mm = row_spacing_mv * voltage
+    row_distance_mm = row_distance_mv * voltage
     top_extra_mm = INFO_TOP_EXTRA_MARGIN_MM if print_information else 0.0
     bot_extra_mm = INFO_BOT_EXTRA_MARGIN_MM if print_information else 0.0
-    total_height_mm = n_rows * row_spacing_mm + 2 * MARGIN_MM + top_extra_mm + bot_extra_mm
+
+    # Calculate spaces from the zero-lines to the edges of the figure
+    top_space_mm = MARGIN_MM + top_extra_mm + row_distance_mm / 2.0
+    ideal_bottom_space_mm = MARGIN_MM + bot_extra_mm + row_distance_mm / 2.0
+
+    # Ensure the bottom space is a multiple of 5mm so that zero-lines align with major grid lines
+    actual_bottom_space_mm = np.ceil(ideal_bottom_space_mm / 5.0) * 5.0
+
+    total_height_mm = top_space_mm + (n_rows - 1) * row_distance_mm + actual_bottom_space_mm
     height_inches = total_height_mm / MM_PER_INCH
 
     return width_inches, height_inches
@@ -136,7 +167,7 @@ def _compute_figure_size(
 def _compute_row_offsets(
     n_rows: int,
     height_inches: float,
-    row_spacing_inches: float,
+    row_distance_inches: float,
     print_information: bool = False,
 ) -> list[float]:
     """Pre-compute the vertical centre (zero-line position, in inches) for each ECG row.
@@ -152,7 +183,7 @@ def _compute_row_offsets(
         Number of rows.
     height_inches : float
         Total figure height in inches (as returned by `_compute_figure_size`).
-    row_spacing_inches : float
+    row_distance_inches : float
         Distance between consecutive zero-lines in inches.
     print_information : bool, optional
         When True, include the extra top margin when computing the first row
@@ -167,8 +198,8 @@ def _compute_row_offsets(
     top_margin_inches = (MARGIN_MM + top_extra_mm) / MM_PER_INCH
     # First row zero-line sits half a spacing below the top margin.
     # (Rows are evenly spaced; the half-spacing gives equal room above row 0 and below last row.)
-    first_zero = height_inches - top_margin_inches - row_spacing_inches / 2.0
-    return [first_zero - i * row_spacing_inches for i in range(n_rows)]
+    first_zero = height_inches - top_margin_inches - row_distance_inches / 2.0
+    return [first_zero - i * row_distance_inches for i in range(n_rows)]
 
 
 def _plot_calibration_pulse(
@@ -249,7 +280,7 @@ def _plot_row(
     if ctx.show_leads_labels:
         # Each lead occupies an equal segment of the total sample length.
         # Place each label at the top-left corner of its segment's bounding box.
-        row_half_height_inches = ctx.row_spacing_inches / 2.0
+        row_half_height_inches = ctx.row_distance_inches / 2.0
         segment_len = n_samples // n_leads
         for i, lead_name in enumerate(leads):
             # x: left edge of this segment (sample i*segment_len), shifted by the left margin
@@ -307,6 +338,7 @@ def _print_information(
     sampling_frequency: float,
     leads: list[str],
     first_row_top_inches: float,
+    last_row_zero_inches: float,
     information=None,
     stats=None,
 ) -> None:
@@ -335,6 +367,9 @@ def _print_information(
     first_row_top_inches : float
         Y coordinate (inches) of the top edge of the first ECG row. Patient info
         is anchored just above this line.
+    last_row_zero_inches : float
+        Y coordinate (inches) of the zero-line of the last ECG row. Used to position
+        the bottom text so it doesn't overlap with the ECG signal.
     information : ECGInformation, optional
         Patient/recording metadata. ``information.machine_model`` is printed
         bottom-right; hospital, patient_name and date are printed top-left.
@@ -345,7 +380,11 @@ def _print_information(
     font = {"fontsize": 7, "fontfamily": "monospace"}
     x_left = LEFT_MARGIN_MM / MM_PER_INCH
     x_right = width_inches - (RIGHT_MARGIN_MM / MM_PER_INCH)
-    bottom_margin = 2.5 / MM_PER_INCH
+
+    row_half_mm = (ctx.row_distance_inches * MM_PER_INCH) / 2.0
+    dist_mm = np.ceil(row_half_mm / 5.0) * 5.0 + MARGIN_MM + INFO_BOT_EXTRA_MARGIN_MM / 2.0
+    bottom_info_top_inches = last_row_zero_inches - dist_mm / MM_PER_INCH
+
     line_height = 0.13  # inches between lines
 
     # --- Bottom-left: diagnostics (single line) ---
@@ -359,11 +398,11 @@ def _print_information(
     if information is not None and getattr(information, "filter", None):
         diag_line += f"   Filter: {information.filter}"
 
-    ax.text(x_left, bottom_margin, diag_line, va="bottom", ha="left", zorder=5, **font)
+    ax.text(x_left, bottom_info_top_inches, diag_line, va="top", ha="left", zorder=5, **font)
 
     # --- Bottom-right: machine model ---
     if information is not None and getattr(information, "machine_model", None):
-        ax.text(x_right, bottom_margin, information.machine_model, va="bottom", ha="right", zorder=5, **font)
+        ax.text(x_right, bottom_info_top_inches, information.machine_model, va="top", ha="right", zorder=5, **font)
 
     # --- Top-left: patient / recording info, anchored just above the first ECG row ---
     if information is not None:

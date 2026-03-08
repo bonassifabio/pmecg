@@ -105,6 +105,7 @@ The `ECGPlotter` class allows full control over the visual style:
 plotter = pmecg.ECGPlotter(
     speed=25.0,           # Paper speed in mm/s
     voltage=10.0,         # Amplitude in mm/mV
+    row_distance=2.0,     # Vertical distance between zero lines of consecutive rows in mV
     line_width=0.7,       # Thickness of the signal
     grid_color="#e0e0e0", # Custom grid color
     show_time_axis=True   # Show time ticks at the bottom

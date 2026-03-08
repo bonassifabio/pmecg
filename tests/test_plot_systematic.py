@@ -23,6 +23,8 @@ import matplotlib
 
 matplotlib.use("Agg")  # non-interactive backend; must precede pyplot import
 
+from contextlib import nullcontext
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -30,7 +32,13 @@ import pytest
 
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
 from pmecg.utils.data import TEMPLATE_CONFIGURATIONS
-from pmecg.utils.plot import LEFT_MARGIN_MM, MM_PER_INCH, _compute_figure_size, _compute_row_offsets
+from pmecg.utils.plot import (
+    LEFT_MARGIN_MM,
+    MM_PER_INCH,
+    _adjust_row_distance,
+    _compute_figure_size,
+    _compute_row_offsets,
+)
 
 # ── Shared test data ───────────────────────────────────────────────────────
 
@@ -70,11 +78,33 @@ def _grid_lines(ax):
 
 def _resolve_rows(configuration) -> list[list[str]]:
     """Normalize any configuration format to list[list[str]] (one sublist per row)."""
+    if configuration is None:
+        return [[lead] for lead in LEAD_NAMES]
     if isinstance(configuration, str):
-        config = TEMPLATE_CONFIGURATIONS[configuration]
+        if configuration in TEMPLATE_CONFIGURATIONS:
+            config = TEMPLATE_CONFIGURATIONS[configuration]
+        else:
+            # Single lead name string
+            config = [configuration]
     else:
         config = configuration
     return [[e] if isinstance(e, str) else e for e in config]
+
+
+def _should_warn_divisible(configuration, n_samples):
+    """Return True if any row in the configuration does not evenly divide n_samples."""
+    rows = _resolve_rows(configuration)
+    for row in rows:
+        if n_samples % len(row) != 0:
+            return True
+    return False
+
+
+def maybe_warns_divisible(configuration, n_samples):
+    """Context manager to handle the divisibility warning if it's expected."""
+    if _should_warn_divisible(configuration, n_samples):
+        return pytest.warns(UserWarning, match="is not evenly divisible")
+    return nullcontext()
 
 
 # ── Figure size ────────────────────────────────────────────────────────────
@@ -92,15 +122,18 @@ def _resolve_rows(configuration) -> list[list[str]]:
 def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
     """Figure dimensions must equal _compute_figure_size() for the given layout."""
     plotter = ECGPlotter(grid_mode=None, print_information=False)
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
+        adjusted_row_distance = _adjust_row_distance(plotter.row_distance, plotter.voltage)
+
         exp_w, exp_h = _compute_figure_size(
             n_rows,
             N_SAMPLES,
             FS,
             plotter.speed,
             plotter.voltage,
-            plotter.row_spacing,
+            adjusted_row_distance,
             print_information=False,
         )
         w, h = fig.get_size_inches()
@@ -114,15 +147,19 @@ def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
 def test_figure_height_grows_with_print_information(ecg_df, print_information):
     """Extra top/bottom margins are added when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=print_information)
-    fig = plotter.plot(ecg_df, ["I", "II"], sampling_frequency=FS, show=False)
+    configuration = ["I", "II"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
+        adjusted_row_distance = _adjust_row_distance(plotter.row_distance, plotter.voltage)
+
         exp_w, exp_h = _compute_figure_size(
             2,
             N_SAMPLES,
             FS,
             plotter.speed,
             plotter.voltage,
-            plotter.row_spacing,
+            adjusted_row_distance,
             print_information=print_information,
         )
         _, h = fig.get_size_inches()
@@ -148,7 +185,8 @@ def test_line_count(ecg_df, n_rows, show_calibration):
     """Without grid, each row contributes exactly 1 signal line + 1 calibration line (if on)."""
     configuration = LEAD_NAMES[:n_rows]
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=show_calibration)
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         expected = n_rows * (2 if show_calibration else 1)
         assert len(_ax(fig).lines) == expected
@@ -162,7 +200,9 @@ def test_line_count(ecg_df, n_rows, show_calibration):
 def test_grid_minor_spacing(ecg_df):
     """Adjacent grid lines (minor ticks) are spaced exactly 1 mm apart in both axes."""
     plotter = ECGPlotter(grid_mode="cm", show_calibration=False)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         vx, hy = _grid_lines(_ax(fig))
         minor_step = 1.0 / MM_PER_INCH  # 1 mm in inches
@@ -176,7 +216,9 @@ def test_grid_major_spacing(ecg_df):
     """Major (thick) grid lines are spaced exactly 5 mm apart in both axes."""
     major_lw = 0.6
     plotter = ECGPlotter(grid_mode="cm", show_calibration=False)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         ax = _ax(fig)
         two_pt = [ln for ln in ax.lines if len(ln.get_xdata()) == 2]
@@ -207,7 +249,9 @@ def test_grid_major_spacing(ecg_df):
 def test_grid_line_count(ecg_df, grid_mode, expect_many_lines):
     """grid_mode='cm' adds many axvline/axhline lines; None adds none."""
     plotter = ECGPlotter(grid_mode=grid_mode, print_information=False, show_calibration=False)
-    fig = plotter.plot(ecg_df, ["I", "II"], sampling_frequency=FS, show=False)
+    configuration = ["I", "II"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         n = len(_ax(fig).lines)
         if expect_many_lines:
@@ -224,7 +268,9 @@ def test_grid_line_count(ecg_df, grid_mode, expect_many_lines):
 @pytest.mark.parametrize("show_time_axis", [True, False])
 def test_time_axis_visibility(ecg_df, show_time_axis):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_time_axis=show_time_axis)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         assert _ax(fig).xaxis.get_visible() == show_time_axis
     finally:
@@ -270,11 +316,13 @@ def test_lead_labels(source_key, plot_key, show_leads_labels):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=show_leads_labels)
 
     if not template_fits:
-        with pytest.raises(KeyError):
-            plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
+        with maybe_warns_divisible(plot_key, N_SAMPLES):
+            with pytest.raises(KeyError):
+                plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
         return
 
-    fig = plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(plot_key, N_SAMPLES):
+        fig = plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
     try:
         texts = _texts(fig)
         if show_leads_labels:
@@ -304,7 +352,8 @@ def test_calibration_1mv_text(ecg_df, show_calibration, n_rows):
     """Each calibration pulse adds a '1mV' text annotation; count must match n_rows."""
     configuration = LEAD_NAMES[:n_rows]
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=show_calibration)
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         n_1mv = sum(1 for t in _texts(fig) if t == "1mV")
         assert n_1mv == (n_rows if show_calibration else 0)
@@ -319,7 +368,9 @@ def test_calibration_1mv_text(ecg_df, show_calibration, n_rows):
 def test_diagnostics_text_presence(ecg_df, print_information):
     """Speed/Voltage/Freq diagnostics appear iff print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=print_information)
-    fig = plotter.plot(ecg_df, ["I", "II"], sampling_frequency=FS, show=False)
+    configuration = ["I", "II"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         has_diag = any("Speed" in t and "Voltage" in t for t in _texts(fig))
         assert has_diag == print_information
@@ -344,7 +395,9 @@ def test_diagnostics_text_presence(ecg_df, print_information):
 def test_patient_info_content(ecg_df, information, needle):
     """Each ECGInformation field is rendered as text when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, information=information)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, information=information)
     try:
         combined = " ".join(_texts(fig))
         assert needle in combined, f"Expected '{needle}' in figure texts"
@@ -373,7 +426,9 @@ def test_patient_info_content(ecg_df, information, needle):
 def test_stats_content(ecg_df, stats, label, value_substr):
     """Each ECGStats field is rendered as 'LABEL: value' text when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, stats=stats)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, stats=stats)
     try:
         combined = " ".join(_texts(fig))
         assert label in combined, f"Expected label '{label}' in figure texts"
@@ -385,13 +440,15 @@ def test_stats_content(ecg_df, stats, label, value_substr):
 def test_stats_absent_when_no_print_information(ecg_df):
     """Stats are not rendered when print_information=False."""
     plotter = ECGPlotter(grid_mode=None, print_information=False)
-    fig = plotter.plot(
-        ecg_df,
-        ["I"],
-        sampling_frequency=FS,
-        show=False,
-        stats=ECGStats(bpm=72.0, qrs_duration_ms=90.0),
-    )
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(
+            ecg_df,
+            configuration,
+            sampling_frequency=FS,
+            show=False,
+            stats=ECGStats(bpm=72.0, qrs_duration_ms=90.0),
+        )
     try:
         assert not any("BPM" in t for t in _texts(fig))
     finally:
@@ -415,7 +472,9 @@ def test_full_ecginformation_all_fields_printed(ecg_df):
         filter="0.05-150 Hz",
     )
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, information=info)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, information=info)
     try:
         combined = " ".join(_texts(fig))
         for needle in ["City Hospital", "John Doe", "65", "Male", "2024-01-15", "ECG-9000", "0.05-150 Hz"]:
@@ -440,7 +499,9 @@ def test_full_ecgstats_all_fields_printed(ecg_df):
         t_axis_deg=45.0,
     )
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, stats=stats)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, stats=stats)
     try:
         combined = " ".join(_texts(fig))
         for label in ALL_STATS_LABELS:
@@ -489,7 +550,9 @@ def test_partial_ecgstats(ecg_df, stats, present_labels, absent_labels):
     substring false-positives (e.g. ``"QRS"`` inside ``"QRS ax.: …"``).
     """
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, stats=stats)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, stats=stats)
     try:
         combined = " ".join(_texts(fig))
         for label in present_labels:
@@ -557,7 +620,9 @@ def test_partial_ecgstats(ecg_df, stats, present_labels, absent_labels):
 def test_partial_ecginformation(ecg_df, information, present_strings, absent_strings):
     """Only set ECGInformation fields appear; unset fields produce no text."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
-    fig = plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, information=information)
+    configuration = ["I"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, information=information)
     try:
         combined = " ".join(_texts(fig))
         for s in present_strings:
@@ -590,7 +655,8 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
     left_margin_in = LEFT_MARGIN_MM / MM_PER_INCH
 
     plotter = ECGPlotter(grid_mode=None, show_calibration=False, print_information=False)
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         # Signal lines: len(xdata) == N_SAMPLES and start exactly at the left margin
         signal_lines = [
@@ -625,7 +691,8 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
 def test_template_row_count(ecg_df, template_key, expected_n_rows):
     """Each named template produces the correct number of ECG rows."""
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
-    fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(template_key, N_SAMPLES):
+        fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
     try:
         # 1 line per row (show_calibration=False, no grid)
         assert len(_ax(fig).lines) == expected_n_rows
@@ -646,7 +713,8 @@ def test_template_all_lead_labels(ecg_df, template_key):
     expected_leads = list(dict.fromkeys(expected_leads))  # deduplicate, preserve order
 
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
-    fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(template_key, N_SAMPLES):
+        fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
     try:
         texts = _texts(fig)
         for lead in expected_leads:
@@ -681,7 +749,7 @@ def test_lead_label_positions(ecg_df, configuration):
     * Repeated leads (e.g. "II" in two different rows) are distinguished by y,
       so each occurrence is checked independently.
     """
-    speed, voltage, row_spacing = 50.0, 20.0, 2.0
+    speed, voltage, row_distance = 50.0, 20.0, 2.0
     rows = _resolve_rows(configuration)
     n_rows = len(rows)
 
@@ -692,19 +760,22 @@ def test_lead_label_positions(ecg_df, configuration):
         show_leads_labels=True,
         speed=speed,
         voltage=voltage,
-        row_spacing=row_spacing,
+        row_distance=row_distance,
     )
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         ax = _ax(fig)
 
+        adjusted_row_distance = _adjust_row_distance(row_distance, voltage)
+
         time_to_inches = speed / (FS * MM_PER_INCH)
-        row_spacing_in = row_spacing * voltage / MM_PER_INCH
+        row_distance_in = adjusted_row_distance * voltage / MM_PER_INCH
         left_margin = LEFT_MARGIN_MM / MM_PER_INCH
 
-        _, height_in = _compute_figure_size(n_rows, N_SAMPLES, FS, speed, voltage, row_spacing)
-        y_offsets = _compute_row_offsets(n_rows, height_in, row_spacing_in)
-        row_half = row_spacing_in / 2.0
+        _, height_in = _compute_figure_size(n_rows, N_SAMPLES, FS, speed, voltage, adjusted_row_distance)
+        y_offsets = _compute_row_offsets(n_rows, height_in, row_distance_in)
+        row_half = row_distance_in / 2.0
 
         # All text artists: (x, y, label)
         all_texts = [(t.get_position()[0], t.get_position()[1], t.get_text()) for t in ax.texts]

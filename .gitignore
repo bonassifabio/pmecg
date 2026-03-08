@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Gemini repo
+.gemini.md
+
 # uv
 uv.lock
 

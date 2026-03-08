@@ -1,5 +1,7 @@
 """Unit tests for pmecg.utils.data."""
 
+from contextlib import nullcontext
+
 import numpy as np
 import pytest
 
@@ -27,6 +29,27 @@ def _make_12lead_df():
     """12-lead DataFrame where lead 'X' has the constant value LEAD_VALUE['X']."""
     leads = list(SUPPORTED_LEADS)
     return _numpy_to_dataframe(_make_ecg_array(leads), leads)
+
+
+def _should_warn_divisible(configuration, n_samples):
+    """Return True if any segment in the configuration does not evenly divide n_samples."""
+    if configuration is None:
+        return False
+    if isinstance(configuration, str):
+        if configuration in TEMPLATE_CONFIGURATIONS:
+            config = TEMPLATE_CONFIGURATIONS[configuration]
+        else:
+            # Single lead name string
+            config = [configuration]
+    else:
+        config = configuration
+
+    # Normalize to list of rows, where each row is a list of leads
+    rows = [[e] if isinstance(e, str) else e for e in config]
+    for row in rows:
+        if n_samples % len(row) != 0:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +109,8 @@ SEGMENT_LEAD_GROUPS = [
     ["I", "AVR", "V6"],
     ["I", "II", "III", "AVR"],
     ["V1", "V2", "V3", "V4", "V5", "V6"],
+    # Adding a case that triggers the warning
+    ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],  # 7 leads, 120 % 7 != 0
 ]
 
 
@@ -95,23 +120,47 @@ class TestSegmentLeads:
     """Cartesian product: lead groups × disconnect flag."""
 
     def test_output_shape(self, selected_leads, disconnect):
-        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if N_SAMPLES % len(selected_leads) != 0
+            else nullcontext()
+        )
+        with ctx:
+            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
         assert signal.shape == (N_SAMPLES,)
 
     def test_returned_leads(self, selected_leads, disconnect):
-        _, ret_leads = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if N_SAMPLES % len(selected_leads) != 0
+            else nullcontext()
+        )
+        with ctx:
+            _, ret_leads = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
         assert ret_leads == selected_leads
 
     def test_interior_segment_values(self, selected_leads, disconnect):
         """All samples except the last in each segment equal the expected lead value."""
-        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if N_SAMPLES % len(selected_leads) != 0
+            else nullcontext()
+        )
+        with ctx:
+            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
         seg = N_SAMPLES // len(selected_leads)
         for i, lead in enumerate(selected_leads):
             np.testing.assert_array_equal(signal[i * seg : (i + 1) * seg - 1], LEAD_VALUE[lead])
 
     def test_last_sample_per_segment(self, selected_leads, disconnect):
         """Last sample of each segment is NaN iff disconnect_segments=True."""
-        signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if N_SAMPLES % len(selected_leads) != 0
+            else nullcontext()
+        )
+        with ctx:
+            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
         seg = N_SAMPLES // len(selected_leads)
         for i, lead in enumerate(selected_leads):
             last = (i + 1) * seg - 1
@@ -177,6 +226,34 @@ APPLY_CONFIG_CASES = [
         [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]],
         id="exotic-4x2",
     ),
+    # configuration with 6 leads in a row (will trigger warning with N_SAMPLES=120? 120/6=20, no)
+    # let's add a custom configuration that triggers warning
+    pytest.param(
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1"]],
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1"]],
+        id="warn-7-leads",
+    ),
+    pytest.param(
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3"]],
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3"]],
+        id="warn-9-leads",
+    ),
+    pytest.param(
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5"]],
+        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5"]],
+        id="warn-11-leads",
+    ),
+    pytest.param(
+        [
+            ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],
+        ],
+        [
+            ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],
+        ],
+        id="mixed-warn",
+    ),
     pytest.param(
         [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], "V3"],
         [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], ["V3"]],
@@ -191,22 +268,46 @@ class TestApplyConfiguration:
     """Cartesian product: configuration cases × disconnect flag."""
 
     def test_row_count(self, config, expected_leads_per_row, disconnect):
-        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if _should_warn_divisible(config, N_SAMPLES)
+            else nullcontext()
+        )
+        with ctx:
+            result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         assert len(result) == len(expected_leads_per_row)
 
     def test_signal_shapes(self, config, expected_leads_per_row, disconnect):
-        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if _should_warn_divisible(config, N_SAMPLES)
+            else nullcontext()
+        )
+        with ctx:
+            result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         for signal, _ in result:
             assert signal.shape == (N_SAMPLES,)
 
     def test_lead_names(self, config, expected_leads_per_row, disconnect):
-        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if _should_warn_divisible(config, N_SAMPLES)
+            else nullcontext()
+        )
+        with ctx:
+            result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         for (_, ret_leads), exp in zip(result, expected_leads_per_row):
             assert ret_leads == (exp if isinstance(exp, list) else [exp])
 
     def test_interior_segment_values(self, config, expected_leads_per_row, disconnect):
         """Interior samples in each segment match the expected lead value."""
-        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if _should_warn_divisible(config, N_SAMPLES)
+            else nullcontext()
+        )
+        with ctx:
+            result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         for (signal, _), row_leads in zip(result, expected_leads_per_row):
             leads = row_leads if isinstance(row_leads, list) else [row_leads]
             seg = N_SAMPLES // len(leads)
@@ -215,7 +316,13 @@ class TestApplyConfiguration:
 
     def test_last_sample_per_segment(self, config, expected_leads_per_row, disconnect):
         """Last sample of each segment is NaN iff disconnect_segments=True."""
-        result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
+        ctx = (
+            pytest.warns(UserWarning, match="is not evenly divisible")
+            if _should_warn_divisible(config, N_SAMPLES)
+            else nullcontext()
+        )
+        with ctx:
+            result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         for (signal, _), row_leads in zip(result, expected_leads_per_row):
             leads = row_leads if isinstance(row_leads, list) else [row_leads]
             seg = N_SAMPLES // len(leads)

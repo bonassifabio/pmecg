@@ -16,6 +16,7 @@ from .utils.data import (
 from .utils.plot import (
     LEFT_MARGIN_MM,
     MM_PER_INCH,
+    _adjust_row_distance,
     _compute_figure_size,
     _compute_row_offsets,
     _nice_tick_step,
@@ -117,7 +118,7 @@ class ECGPlotter:
         grid_mode: Literal["cm"] | None = "cm",
         speed: float = 50.0,
         voltage: float = 20.0,
-        row_spacing: float = 2.0,
+        row_distance: float = 2.0,
         line_width: float = 0.5,
         grid_color: str = "#f4aaaa",
         print_information: bool = False,
@@ -138,7 +139,7 @@ class ECGPlotter:
             The speed of the plot in mm/s, by default 50.0
         voltage : float, optional
             The space (in mm) corresponding to 1 mV, by default 20.0
-        row_spacing : float, optional
+        row_distance : float, optional
             Distance between the zero-lines of consecutive rows, expressed in mV, by default 2.0
         line_width : float, optional
             Thickness of the ECG signal lines (and calibration pulse) in points, by default 0.5
@@ -162,14 +163,14 @@ class ECGPlotter:
         assert grid_mode in (None, "cm"), "grid_mode must be None or 'cm'"
         assert isinstance(speed, (int, float)) and speed > 0, "speed must be a positive number"
         assert isinstance(voltage, (int, float)) and voltage > 0, "voltage must be a positive number"
-        assert isinstance(row_spacing, (int, float)) and row_spacing > 0, "row_spacing must be a positive number"
+        assert isinstance(row_distance, (int, float)) and row_distance > 0, "row_distance must be a positive number"
         assert isinstance(line_width, (int, float)) and line_width > 0, "line_width must be a positive number"
         assert isinstance(grid_color, str) and len(grid_color) > 0, "grid_color must be a non-empty string"
 
         self.grid_mode = grid_mode
         self.speed = speed
         self.voltage = voltage
-        self.row_spacing = row_spacing
+        self.row_distance = row_distance
         self.line_width = line_width
         self.grid_color = grid_color
         self.print_information = print_information
@@ -246,11 +247,15 @@ class ECGPlotter:
         # Number of samples is the same for every row (the full recording length)
         seq_len = df_data.shape[0]
 
+        # Ensure row_distance * voltage is a multiple of 5mm
+        # (ceil to the closest multiple of 5mm, rounding slightly first to avoid float precision issues)
+        adjusted_row_distance = _adjust_row_distance(self.row_distance, self.voltage)
+
         # Conversion factors and per-call render context
         ctx = _RenderContext(
             mv_to_inches=self.voltage / MM_PER_INCH,
             time_to_inches=self.speed / (sampling_frequency * MM_PER_INCH),
-            row_spacing_inches=self.row_spacing * self.voltage / MM_PER_INCH,
+            row_distance_inches=adjusted_row_distance * self.voltage / MM_PER_INCH,
             line_width=self.line_width,
             grid_color=self.grid_color,
             speed=self.speed,
@@ -266,7 +271,7 @@ class ECGPlotter:
             sampling_frequency,
             self.speed,
             self.voltage,
-            self.row_spacing,
+            adjusted_row_distance,
             print_information=self.print_information,
         )
 
@@ -274,7 +279,7 @@ class ECGPlotter:
         y_offsets = _compute_row_offsets(
             n_rows,
             height_inches,
-            ctx.row_spacing_inches,
+            ctx.row_distance_inches,
             self.print_information,
         )
 
@@ -317,7 +322,8 @@ class ECGPlotter:
 
         if self.print_information:
             original_leads = list(df_data.columns)
-            first_row_top_inches = y_offsets[0] + ctx.row_spacing_inches / 2.0
+            first_row_top_inches = y_offsets[0] + ctx.row_distance_inches / 2.0
+            last_row_zero_inches = y_offsets[-1]
             _print_information(
                 ax,
                 ctx,
@@ -325,6 +331,7 @@ class ECGPlotter:
                 sampling_frequency,
                 original_leads,
                 first_row_top_inches,
+                last_row_zero_inches,
                 information=information,
                 stats=stats,
             )
