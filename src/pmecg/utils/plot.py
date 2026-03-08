@@ -127,14 +127,14 @@ def _compute_figure_size(
     row_distance_mm = row_distance_mv * voltage
     top_extra_mm = INFO_TOP_EXTRA_MARGIN_MM if print_information else 0.0
     bot_extra_mm = INFO_BOT_EXTRA_MARGIN_MM if print_information else 0.0
-    
+
     # Calculate spaces from the zero-lines to the edges of the figure
     top_space_mm = MARGIN_MM + top_extra_mm + row_distance_mm / 2.0
     ideal_bottom_space_mm = MARGIN_MM + bot_extra_mm + row_distance_mm / 2.0
-    
+
     # Ensure the bottom space is a multiple of 5mm so that zero-lines align with major grid lines
     actual_bottom_space_mm = np.ceil(ideal_bottom_space_mm / 5.0) * 5.0
-    
+
     total_height_mm = top_space_mm + (n_rows - 1) * row_distance_mm + actual_bottom_space_mm
     height_inches = total_height_mm / MM_PER_INCH
 
@@ -357,11 +357,11 @@ def _print_information(
     font = {"fontsize": 7, "fontfamily": "monospace"}
     x_left = LEFT_MARGIN_MM / MM_PER_INCH
     x_right = width_inches - (RIGHT_MARGIN_MM / MM_PER_INCH)
-    
+
     row_half_mm = (ctx.row_distance_inches * MM_PER_INCH) / 2.0
     dist_mm = np.ceil(row_half_mm / 5.0) * 5.0 + MARGIN_MM + INFO_BOT_EXTRA_MARGIN_MM / 2.0
     bottom_info_top_inches = last_row_zero_inches - dist_mm / MM_PER_INCH
-    
+
     line_height = 0.13  # inches between lines
 
     # --- Bottom-left: diagnostics (single line) ---
