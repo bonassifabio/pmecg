@@ -18,6 +18,7 @@ from .utils.plot import (
     MM_PER_INCH,
     _compute_figure_size,
     _compute_row_offsets,
+    _adjust_row_distance,
     _nice_tick_step,
     _plot_grid,
     _plot_row,
@@ -248,9 +249,7 @@ class ECGPlotter:
 
         # Ensure row_distance * voltage is a multiple of 5mm
         # (ceil to the closest multiple of 5mm, rounding slightly first to avoid float precision issues)
-        row_distance_mm = np.round(self.row_distance * self.voltage, decimals=5)
-        row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
-        adjusted_row_distance = row_distance_mm / self.voltage
+        adjusted_row_distance = _adjust_row_distance(self.row_distance, self.voltage)
 
         # Conversion factors and per-call render context
         ctx = _RenderContext(

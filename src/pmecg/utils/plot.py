@@ -79,6 +79,29 @@ def _nice_tick_step(total_time_s: float) -> float:
     return nice * magnitude
 
 
+def _adjust_row_distance(row_distance: float, voltage: float) -> float:
+    """Adjust row_distance so that it is a multiple of 5 mm in vertical space.
+
+    Rounding is applied to avoid float precision issues before the ceiling
+    operation.
+
+    Parameters
+    ----------
+    row_distance : float
+        The distance between rows in mV.
+    voltage : float
+        Vertical scale: mm per mV.
+
+    Returns
+    -------
+    float
+        Adjusted row distance in mV.
+    """
+    row_distance_mm = np.round(row_distance * voltage, decimals=5)
+    row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
+    return row_distance_mm / voltage
+
+
 def _compute_figure_size(
     n_rows: int,
     seq_len: int,

@@ -30,7 +30,13 @@ import pytest
 
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
 from pmecg.utils.data import TEMPLATE_CONFIGURATIONS
-from pmecg.utils.plot import LEFT_MARGIN_MM, MM_PER_INCH, _compute_figure_size, _compute_row_offsets
+from pmecg.utils.plot import (
+    LEFT_MARGIN_MM,
+    MM_PER_INCH,
+    _adjust_row_distance,
+    _compute_figure_size,
+    _compute_row_offsets,
+)
 
 # ── Shared test data ───────────────────────────────────────────────────────
 
@@ -94,10 +100,7 @@ def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
     plotter = ECGPlotter(grid_mode=None, print_information=False)
     fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
-        # Replicate the row_distance adjustment logic from ECGPlotter.plot
-        row_distance_mm = np.round(plotter.row_distance * plotter.voltage, decimals=5)
-        row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
-        adjusted_row_distance = row_distance_mm / plotter.voltage
+        adjusted_row_distance = _adjust_row_distance(plotter.row_distance, plotter.voltage)
 
         exp_w, exp_h = _compute_figure_size(
             n_rows,
@@ -121,10 +124,7 @@ def test_figure_height_grows_with_print_information(ecg_df, print_information):
     plotter = ECGPlotter(grid_mode=None, print_information=print_information)
     fig = plotter.plot(ecg_df, ["I", "II"], sampling_frequency=FS, show=False)
     try:
-        # Replicate the row_distance adjustment logic from ECGPlotter.plot
-        row_distance_mm = np.round(plotter.row_distance * plotter.voltage, decimals=5)
-        row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
-        adjusted_row_distance = row_distance_mm / plotter.voltage
+        adjusted_row_distance = _adjust_row_distance(plotter.row_distance, plotter.voltage)
 
         exp_w, exp_h = _compute_figure_size(
             2,
@@ -708,10 +708,7 @@ def test_lead_label_positions(ecg_df, configuration):
     try:
         ax = _ax(fig)
 
-        # Replicate the row_distance adjustment logic from ECGPlotter.plot
-        row_distance_mm = np.round(row_distance * voltage, decimals=5)
-        row_distance_mm = np.ceil(row_distance_mm / 5.0) * 5.0
-        adjusted_row_distance = row_distance_mm / voltage
+        adjusted_row_distance = _adjust_row_distance(row_distance, voltage)
 
         time_to_inches = speed / (FS * MM_PER_INCH)
         row_distance_in = adjusted_row_distance * voltage / MM_PER_INCH
