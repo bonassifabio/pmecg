@@ -9,9 +9,11 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from .utils.data import (
+    LeadsMap,
     _apply_configuration,
     _numpy_to_dataframe,
-    _validate_lead_names,
+    _resolve_configuration,
+    _validate_input_lead_names,
 )
 from .utils.plot import (
     LEFT_MARGIN_MM,
@@ -183,6 +185,7 @@ class ECGPlotter:
         self,
         ecg_data: ECGDataType,
         configuration: ConfigurationDataType | None = None,
+        leads_map: LeadsMap | None = None,
         sampling_frequency: float = 500.0,
         show: bool = True,
         information: ECGInformation | None = None,
@@ -207,6 +210,12 @@ class ECGPlotter:
                 - str, to indicate notable templates.
                 - None, to plot all leads in the DataFrame for their entire duration.
                 By default None.
+        leads_map : LeadsMap | None, optional
+            Optional mapping from canonical template slots (e.g. ``"II"``, ``"V1"``)
+            to the exact lead names used in ``ecg_data``. Template configurations always
+            use canonical slots internally; this mapping lets them resolve to custom
+            input names while preserving those custom names in rendered labels and
+            diagnostics. By default None.
         sampling_frequency : float, optional
             The sampling frequency of the ECG data in Hz, by default 500.0
         show : bool, optional
@@ -226,7 +235,6 @@ class ECGPlotter:
             The matplotlib figure object containing the plot
         """
         if isinstance(ecg_data, tuple):
-            _validate_lead_names(ecg_data[1])
             df_data = _numpy_to_dataframe(ecg_data[0], ecg_data[1])
         elif isinstance(ecg_data, np.ndarray) or (
             isinstance(ecg_data, list) and len(ecg_data) > 0 and all(isinstance(row, np.ndarray) for row in ecg_data)
@@ -240,8 +248,12 @@ class ECGPlotter:
                 "a numpy array, a list of numpy arrays, or a pandas DataFrame"
             )
 
+        _validate_input_lead_names(list(df_data.columns))
+
+        resolved_configuration = _resolve_configuration(configuration, list(df_data.columns), leads_map=leads_map)
+
         # Apply the layout configuration → one (signal, leads) pair per row
-        rows = _apply_configuration(df_data, configuration, self.disconnect_segments)
+        rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
         n_rows = len(rows)
 
         # Number of samples is the same for every row (the full recording length)

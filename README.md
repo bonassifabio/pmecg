@@ -54,7 +54,7 @@ fig.savefig("ecg.png", dpi=300, bbox_inches="tight")
 
 ## Advanced Usage
 
-### Patient Metadata and Statistics
+### Patient Metadata
 
 You can annotate your plots with patient information and computed diagnostic stats:
 
@@ -96,6 +96,49 @@ The `configuration` parameter in `ECGPlotter.plot` defines how leads are arrange
   - A **single string** (e.g., `['V5']` or `['I', 'II', 'III', 'V1']`): Each lead in the list is plotted on the corresponding row for its entire length.
   - A **sub-list of strings** (e.g., `[['I', 'V1'], ['II', 'V2']]`): Leads in each sub-list are concatenated within that row. In this case, the first row would feature the first half of lead I, and the second half of lead V1. The second row would feature the first half of lead II and the second half of lead V2.
   - **sub-list of strings and strings** (e.g., `[['I', 'V1'], ['II', 'V2'], 'III']`) are used to specify what should be in each row. Sub-lists specify what lead to print on each column of that row, while strings specify the strip leads.
+
+
+### Custom Lead Names With `LeadsMap`
+
+Built-in templates such as `4x3` use canonical lead names internally. If your input
+data uses different column names, pass a `pmecg.LeadsMap` so templates still resolve
+correctly while keeping your custom labels in the rendered plot:
+
+```python
+custom_df = pd.DataFrame(
+    {
+        "Lead 1": np.random.randn(len(t)) * 0.1,
+        "Lead 2": np.random.randn(len(t)) * 0.1,
+        "Lead 3": np.random.randn(len(t)) * 0.1,
+        "aVR-custom": np.random.randn(len(t)) * 0.1,
+        "aVL-custom": np.random.randn(len(t)) * 0.1,
+        "aVF-custom": np.random.randn(len(t)) * 0.1,
+        "Chest-1": np.random.randn(len(t)) * 0.1,
+        "Chest-2": np.random.randn(len(t)) * 0.1,
+        "Chest-3": np.random.randn(len(t)) * 0.1,
+        "Chest-4": np.random.randn(len(t)) * 0.1,
+        "Chest-5": np.random.randn(len(t)) * 0.1,
+        "Chest-6": np.random.randn(len(t)) * 0.1,
+    }
+)
+
+leads_map = pmecg.LeadsMap(
+    I="Lead 1",
+    II="Lead 2",
+    III="Lead 3",
+    AVR="aVR-custom",
+    AVL="aVL-custom",
+    AVF="aVF-custom",
+    V1="Chest-1",
+    V2="Chest-2",
+    V3="Chest-3",
+    V4="Chest-4",
+    V5="Chest-5",
+    V6="Chest-6",
+)
+
+fig = pmecg.ECGPlotter().plot(custom_df, configuration="4x3", leads_map=leads_map, sampling_frequency=fs)
+```
 
 ### Customizing the Plotter
 

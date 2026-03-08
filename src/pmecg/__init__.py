@@ -9,6 +9,6 @@ try:
 except PackageNotFoundError:
     __version__ = "unknown"
 from .plot import ECGInformation, ECGPlotter, ECGStats
-from .utils.data import SUPPORTED_LEADS
+from .utils.data import SUPPORTED_LEADS, LeadsMap
 
-__all__ = ["ECGPlotter", "ECGStats", "ECGInformation", "SUPPORTED_LEADS"]
+__all__ = ["ECGPlotter", "ECGStats", "ECGInformation", "LeadsMap", "SUPPORTED_LEADS"]

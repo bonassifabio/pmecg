@@ -8,8 +8,10 @@ import pytest
 from pmecg.utils.data import (
     SUPPORTED_LEADS,
     TEMPLATE_CONFIGURATIONS,
+    LeadsMap,
     _apply_configuration,
     _numpy_to_dataframe,
+    _resolve_configuration,
     _segment_leads,
 )
 
@@ -18,6 +20,21 @@ from pmecg.utils.data import (
 LEAD_VALUE = {lead: float(i + 1) for i, lead in enumerate(SUPPORTED_LEADS)}
 
 N_SAMPLES = 120  # divisible by 1, 2, 3, 4, 6, 8, 12
+CUSTOM_LEADS_MAP = LeadsMap(
+    I="LI",
+    II="LII",
+    III="LIII",
+    AVR="aVR-custom",
+    AVL="aVL-custom",
+    AVF="aVF-custom",
+    V1="Chest-1",
+    V2="Chest-2",
+    V3="Chest-3",
+    V4="Chest-4",
+    V5="Chest-5",
+    V6="Chest-6",
+)
+CUSTOM_LEADS = [lead for lead in CUSTOM_LEADS_MAP if lead is not None]
 
 
 def _make_ecg_array(leads: list[str]) -> np.ndarray:
@@ -97,6 +114,18 @@ class TestNumpyToDataframeDefaults:
         """Passing lead_names of wrong length must raise AssertionError."""
         with pytest.raises(AssertionError):
             _numpy_to_dataframe(np.ones((N_SAMPLES, 3)), ["I", "II"])
+
+    def test_custom_names_are_preserved(self):
+        """Explicit non-canonical names must be preserved verbatim."""
+        df = _numpy_to_dataframe(np.ones((N_SAMPLES, 3)), ["LI", "Lead Two", "Chest-1"])
+        assert list(df.columns) == ["LI", "Lead Two", "Chest-1"]
+
+    def test_lowercase_canonical_names_are_uppercased_with_warning(self):
+        """Lowercase canonical names are normalized for backward compatibility."""
+        lowercase_leads = ["i", "ii", "v1"]
+        with pytest.warns(UserWarning, match="normalized to uppercase"):
+            df = _numpy_to_dataframe(np.ones((N_SAMPLES, 3)), lowercase_leads)
+        assert list(df.columns) == ["I", "II", "V1"]
 
 
 # ---------------------------------------------------------------------------
@@ -350,3 +379,44 @@ class TestApplyConfigurationDefault:
             assert selected_leads[0] == df.columns[i]
             # The signal should be the lead data
             np.testing.assert_array_equal(signal, df[df.columns[i]].values)
+
+
+class TestResolveConfiguration:
+    def test_template_resolves_to_custom_input_names(self):
+        resolved = _resolve_configuration("4x3", CUSTOM_LEADS, leads_map=CUSTOM_LEADS_MAP)
+        assert resolved == [
+            ["LI", "aVR-custom", "Chest-1", "Chest-4"],
+            ["LII", "aVL-custom", "Chest-2", "Chest-5"],
+            ["LIII", "aVF-custom", "Chest-3", "Chest-6"],
+            "LII",
+        ]
+
+    def test_custom_configuration_accepts_custom_names(self):
+        configuration = [["LI", "aVR-custom", "Chest-1"], "Chest-6"]
+        resolved = _resolve_configuration(configuration, CUSTOM_LEADS, leads_map=CUSTOM_LEADS_MAP)
+        assert resolved == configuration
+
+    def test_custom_configuration_accepts_canonical_names(self):
+        configuration = [["I", "AVR", "V1"], "V6"]
+        resolved = _resolve_configuration(configuration, CUSTOM_LEADS, leads_map=CUSTOM_LEADS_MAP)
+        assert resolved == [["LI", "aVR-custom", "Chest-1"], "Chest-6"]
+
+    def test_template_missing_required_canonical_mapping_raises(self):
+        partial_map = CUSTOM_LEADS_MAP._replace(AVR=None)
+        with pytest.raises(ValueError, match="Template '4x3' requires canonical lead 'AVR'"):
+            _resolve_configuration("4x3", CUSTOM_LEADS, leads_map=partial_map)
+
+    def test_duplicate_custom_names_in_map_raise(self):
+        duplicate_map = CUSTOM_LEADS_MAP._replace(III="LII")
+        with pytest.raises(ValueError, match="Duplicate custom lead name 'LII'"):
+            _resolve_configuration("4x3", CUSTOM_LEADS, leads_map=duplicate_map)
+
+    def test_unknown_configuration_lead_raises(self):
+        with pytest.raises(ValueError, match="cannot be resolved"):
+            _resolve_configuration([["I", "UnknownLead"]], CUSTOM_LEADS, leads_map=CUSTOM_LEADS_MAP)
+
+    def test_lowercase_canonical_input_leads_resolve_without_map(self):
+        with pytest.warns(UserWarning, match="normalized to uppercase"):
+            df = _numpy_to_dataframe(np.ones((N_SAMPLES, 12)), [lead.lower() for lead in SUPPORTED_LEADS])
+        resolved = _resolve_configuration("4x3", list(df.columns))
+        assert resolved == TEMPLATE_CONFIGURATIONS["4x3"]

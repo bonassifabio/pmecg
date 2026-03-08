@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Mapping, Sequence
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -18,6 +20,48 @@ TEMPLATE_CONFIGURATIONS = {
     "2x6": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
     "4x3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II"],
 }
+
+
+class LeadsMap(NamedTuple):
+    """Optional mapping from canonical leads to input lead names."""
+
+    I: str | None = None  # noqa: E741
+    II: str | None = None
+    III: str | None = None
+    AVR: str | None = None
+    AVL: str | None = None
+    AVF: str | None = None
+    V1: str | None = None
+    V2: str | None = None
+    V3: str | None = None
+    V4: str | None = None
+    V5: str | None = None
+    V6: str | None = None
+
+
+def _normalize_input_lead_names(lead_names: Sequence[str]) -> list[str]:
+    """Normalize input lead names while preserving custom labels."""
+    normalized_names = [str(name) for name in lead_names]
+    lowercase_supported_leads = {lead.lower() for lead in SUPPORTED_LEADS}
+
+    if normalized_names and all(name in lowercase_supported_leads for name in normalized_names):
+        warnings.warn(
+            "Lowercase canonical lead names are deprecated and will be normalized to uppercase. "
+            "Please pass standard lead names in uppercase.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return [name.upper() for name in normalized_names]
+
+    return normalized_names
+
+
+def _normalize_canonical_lead_name(lead_name: str) -> str:
+    """Return the canonical spelling for a supported standard lead."""
+    normalized = lead_name.upper()
+    if normalized not in SUPPORTED_LEADS:
+        raise ValueError(f"Lead name '{lead_name}' is not supported. Supported leads are: {SUPPORTED_LEADS}")
+    return normalized
 
 
 def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = None) -> pd.DataFrame:
@@ -74,33 +118,168 @@ def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = Non
 
     # At this stage, ecg_data is a 2D numpy array with shape (n_samples, n_leads)
     # and lead_names is a list of strings with length equal to the number of leads.
-    return pd.DataFrame(ecg_data, columns=[name.upper() for name in lead_names])
+    return pd.DataFrame(ecg_data, columns=_normalize_input_lead_names(lead_names))
 
 
-def _validate_lead_names(lead_name: str | list[str]) -> None:
-    """Validate that the provided lead name is supported.
+def _validate_input_lead_names(lead_names: Sequence[str]) -> None:
+    """Validate that user-provided input lead names are unique and non-empty."""
+    normalized_names = [str(name) for name in lead_names]
+    if any(len(name) == 0 for name in normalized_names):
+        raise ValueError("Lead names must be non-empty strings")
 
-    Parameters
-    ----------
-    lead_name : str | list[str]
-        The name, or list of names, of the lead(s) to be validated.
+    duplicates = sorted({name for name in normalized_names if normalized_names.count(name) > 1})
+    if duplicates:
+        duplicate_names = ", ".join(repr(name) for name in duplicates)
+        raise ValueError(f"Duplicate lead names are not allowed: {duplicate_names}")
 
-    Raises
-    ------
-    ValueError
-        If the provided lead name is not supported.
-    """
-    if isinstance(lead_name, list):
-        for name in lead_name:
-            if name.upper() not in SUPPORTED_LEADS:
-                raise ValueError(
-                    f"Lead name '{name}' in configuration is not supported. Supported leads are: {SUPPORTED_LEADS}"
-                )
-    else:
-        if lead_name.upper() not in SUPPORTED_LEADS:
+
+def _normalize_leads_map(
+    leads_map: LeadsMap | None,
+    input_leads: Sequence[str],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Validate and normalize a canonical-to-custom lead-name mapping."""
+    _validate_input_lead_names(input_leads)
+
+    if leads_map is None:
+        return {}, {}
+
+    canonical_to_custom: dict[str, str] = {}
+    custom_to_canonical: dict[str, str] = {}
+    available_input_leads = set(input_leads)
+
+    for canonical_name, custom_name in leads_map._asdict().items():
+        if custom_name is None:
+            continue
+        canonical_key = _normalize_canonical_lead_name(str(canonical_name))
+        custom_value = str(custom_name)
+        if custom_value not in available_input_leads:
             raise ValueError(
-                f"Lead name '{lead_name}' in configuration is not supported. Supported leads are: {SUPPORTED_LEADS}"
+                f"Leads map value '{custom_value}' for canonical lead '{canonical_key}' is not present in the input data"
             )
+        if canonical_key in canonical_to_custom:
+            raise ValueError(f"Duplicate canonical lead mapping for '{canonical_key}' is not allowed")
+        if custom_value in custom_to_canonical:
+            raise ValueError(f"Duplicate custom lead name '{custom_value}' in leads_map is not allowed")
+
+        canonical_to_custom[canonical_key] = custom_value
+        custom_to_canonical[custom_value] = canonical_key
+
+    return canonical_to_custom, custom_to_canonical
+
+
+def _resolve_configuration_lead(
+    lead_name: str,
+    available_input_leads: Sequence[str],
+    canonical_to_custom: Mapping[str, str],
+    custom_to_canonical: Mapping[str, str],
+) -> str:
+    """Resolve a configuration token to the exact input lead name used in the DataFrame."""
+    if lead_name in available_input_leads:
+        return lead_name
+
+    if lead_name in custom_to_canonical:
+        return lead_name
+
+    normalized = lead_name.upper()
+    if normalized in SUPPORTED_LEADS:
+        if normalized in canonical_to_custom:
+            return canonical_to_custom[normalized]
+        if normalized in available_input_leads:
+            return normalized
+        raise ValueError(
+            f"Lead '{lead_name}' resolves to canonical slot '{normalized}', but that lead is not available in the input data"
+        )
+
+    raise ValueError(f"Lead name '{lead_name}' in configuration cannot be resolved to a canonical slot or an input lead name")
+
+
+def _resolve_template_configuration(
+    configuration: str,
+    canonical_to_custom: Mapping[str, str],
+    available_input_leads: Sequence[str],
+    validate_missing: bool,
+) -> list[list[str] | str]:
+    """Resolve a built-in canonical template to the exact input lead names."""
+    resolved_configuration: list[list[str] | str] = []
+
+    for entry in TEMPLATE_CONFIGURATIONS[configuration]:
+        if isinstance(entry, list):
+            resolved_entry = []
+            for canonical_name in entry:
+                canonical_key = _normalize_canonical_lead_name(canonical_name)
+                if canonical_key in canonical_to_custom:
+                    resolved_entry.append(canonical_to_custom[canonical_key])
+                elif canonical_key in available_input_leads:
+                    resolved_entry.append(canonical_key)
+                elif not validate_missing:
+                    resolved_entry.append(canonical_key)
+                else:
+                    raise ValueError(
+                        f"Template '{configuration}' requires canonical lead '{canonical_key}', "
+                        "but it is missing from leads_map and the input data"
+                    )
+            resolved_configuration.append(resolved_entry)
+        else:
+            canonical_key = _normalize_canonical_lead_name(entry)
+            if canonical_key in canonical_to_custom:
+                resolved_configuration.append(canonical_to_custom[canonical_key])
+            elif canonical_key in available_input_leads:
+                resolved_configuration.append(canonical_key)
+            elif not validate_missing:
+                resolved_configuration.append(canonical_key)
+            else:
+                raise ValueError(
+                    f"Template '{configuration}' requires canonical lead '{canonical_key}', "
+                    "but it is missing from leads_map and the input data"
+                )
+
+    return resolved_configuration
+
+
+def _resolve_configuration(
+    configuration: list[list[str] | str] | str | None,
+    input_leads: Sequence[str],
+    leads_map: LeadsMap | None = None,
+) -> list[list[str] | str] | str | None:
+    """Resolve a user configuration to the exact input lead names used in the DataFrame."""
+    canonical_to_custom, custom_to_canonical = _normalize_leads_map(leads_map, input_leads)
+    available_input_leads = list(input_leads)
+
+    if configuration is None:
+        return None
+
+    if isinstance(configuration, str):
+        if configuration in TEMPLATE_CONFIGURATIONS:
+            return _resolve_template_configuration(
+                configuration,
+                canonical_to_custom,
+                available_input_leads,
+                validate_missing=leads_map is not None,
+            )
+        return _resolve_configuration_lead(configuration, available_input_leads, canonical_to_custom, custom_to_canonical)
+
+    if isinstance(configuration, list):
+        resolved_configuration: list[list[str] | str] = []
+        for entry in configuration:
+            if isinstance(entry, str):
+                resolved_configuration.append(
+                    _resolve_configuration_lead(entry, available_input_leads, canonical_to_custom, custom_to_canonical)
+                )
+            elif isinstance(entry, list):
+                resolved_configuration.append(
+                    [
+                        _resolve_configuration_lead(lead_name, available_input_leads, canonical_to_custom, custom_to_canonical)
+                        for lead_name in entry
+                    ]
+                )
+            else:
+                raise ValueError(
+                    "configuration list must contain either strings (lead names) "
+                    "or sub-lists of strings (lead names for each row)"
+                )
+        return resolved_configuration
+
+    raise ValueError("configuration must be either a string or a list of lists of strings")
 
 
 # segment_leads

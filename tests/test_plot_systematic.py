@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pmecg import LeadsMap
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
 from pmecg.utils.data import TEMPLATE_CONFIGURATIONS
 from pmecg.utils.plot import (
@@ -43,6 +44,21 @@ from pmecg.utils.plot import (
 # ── Shared test data ───────────────────────────────────────────────────────
 
 LEAD_NAMES = ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+CUSTOM_LEADS_MAP = LeadsMap(
+    I="LI",
+    II="LII",
+    III="LIII",
+    AVR="aVR-custom",
+    AVL="aVL-custom",
+    AVF="aVF-custom",
+    V1="Chest-1",
+    V2="Chest-2",
+    V3="Chest-3",
+    V4="Chest-4",
+    V5="Chest-5",
+    V6="Chest-6",
+)
+CUSTOM_LEAD_NAMES = [lead for lead in CUSTOM_LEADS_MAP if lead is not None]
 FS = 500  # Hz
 N_SAMPLES = 1000  # 2 s — short enough to keep tests fast
 
@@ -53,6 +69,14 @@ def ecg_df() -> pd.DataFrame:
     rng = np.random.default_rng(42)
     data = rng.standard_normal((N_SAMPLES, len(LEAD_NAMES))) * 0.5
     return pd.DataFrame(data, columns=LEAD_NAMES)
+
+
+@pytest.fixture(scope="module")
+def custom_ecg_df() -> pd.DataFrame:
+    """12-lead synthetic ECG using custom user-visible lead names."""
+    rng = np.random.default_rng(123)
+    data = rng.standard_normal((N_SAMPLES, len(CUSTOM_LEAD_NAMES))) * 0.5
+    return pd.DataFrame(data, columns=CUSTOM_LEAD_NAMES)
 
 
 def _ax(fig):
@@ -376,6 +400,118 @@ def test_diagnostics_text_presence(ecg_df, print_information):
         assert has_diag == print_information
     finally:
         plt.close(fig)
+
+
+def test_template_labels_use_custom_names(custom_ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    fig = plotter.plot(
+        custom_ecg_df,
+        "4x3",
+        leads_map=CUSTOM_LEADS_MAP,
+        sampling_frequency=FS,
+        show=False,
+    )
+    try:
+        texts = _texts(fig)
+        for lead in ["LI", "aVR-custom", "Chest-1", "Chest-4", "LII", "Chest-6"]:
+            assert lead in texts
+        for canonical in ["I", "AVR", "V1", "V4", "II", "V6"]:
+            assert canonical not in texts
+    finally:
+        plt.close(fig)
+
+
+def test_diagnostics_leads_use_custom_names(custom_ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=True, show_leads_labels=False)
+    fig = plotter.plot(
+        custom_ecg_df,
+        "4x3",
+        leads_map=CUSTOM_LEADS_MAP,
+        sampling_frequency=FS,
+        show=False,
+    )
+    try:
+        diag_lines = [text for text in _texts(fig) if "Speed:" in text and "Leads:" in text]
+        assert len(diag_lines) == 1
+        diag_line = diag_lines[0]
+        expected_leads = "Leads: LI LII LIII aVR-custom aVL-custom aVF-custom Chest-1 Chest-2 Chest-3 Chest-4 Chest-5 Chest-6"
+        assert expected_leads in diag_line
+        assert "Leads: I II III AVR AVL AVF V1 V2 V3 V4 V5 V6" not in diag_line
+    finally:
+        plt.close(fig)
+
+
+def test_tuple_input_with_custom_names_and_template():
+    rng = np.random.default_rng(7)
+    ecg_array = rng.standard_normal((N_SAMPLES, len(CUSTOM_LEAD_NAMES))) * 0.5
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    fig = plotter.plot(
+        (ecg_array, CUSTOM_LEAD_NAMES),
+        "4x3",
+        leads_map=CUSTOM_LEADS_MAP,
+        sampling_frequency=FS,
+        show=False,
+    )
+    try:
+        texts = _texts(fig)
+        assert "LI" in texts
+        assert "Chest-6" in texts
+    finally:
+        plt.close(fig)
+
+
+def test_custom_configuration_with_custom_names(custom_ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    configuration = [["LI", "aVR-custom", "Chest-1"], "Chest-6"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(
+            custom_ecg_df,
+            configuration,
+            leads_map=CUSTOM_LEADS_MAP,
+            sampling_frequency=FS,
+            show=False,
+        )
+    try:
+        texts = _texts(fig)
+        assert "LI" in texts
+        assert "aVR-custom" in texts
+        assert "Chest-1" in texts
+        assert "Chest-6" in texts
+    finally:
+        plt.close(fig)
+
+
+def test_custom_configuration_with_canonical_names(custom_ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    configuration = [["I", "AVR", "V1"], "V6"]
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(
+            custom_ecg_df,
+            configuration,
+            leads_map=CUSTOM_LEADS_MAP,
+            sampling_frequency=FS,
+            show=False,
+        )
+    try:
+        texts = _texts(fig)
+        for lead in ["LI", "aVR-custom", "Chest-1", "Chest-6"]:
+            assert lead in texts
+    finally:
+        plt.close(fig)
+
+
+def test_template_missing_mapping_raises(custom_ecg_df):
+    partial_map = CUSTOM_LEADS_MAP._replace(AVR=None)
+    plotter = ECGPlotter(grid_mode=None, print_information=False)
+    with pytest.raises(ValueError, match="Template '4x3' requires canonical lead 'AVR'"):
+        plotter.plot(custom_ecg_df, "4x3", leads_map=partial_map, sampling_frequency=FS, show=False)
+
+
+def test_duplicate_custom_names_in_map_raise(custom_ecg_df):
+    duplicate_map = CUSTOM_LEADS_MAP._replace(III="LII")
+    plotter = ECGPlotter(grid_mode=None, print_information=False)
+    with pytest.raises(ValueError, match="Duplicate custom lead name 'LII'"):
+        plotter.plot(custom_ecg_df, "4x3", leads_map=duplicate_map, sampling_frequency=FS, show=False)
 
 
 # ── print_information: patient metadata ───────────────────────────────────
