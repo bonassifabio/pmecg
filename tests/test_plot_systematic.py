@@ -1,23 +1,4 @@
-"""Automated structural tests for ECGPlotter.
-
-Instead of manually inspecting images, these tests introspect the returned
-``matplotlib.Figure`` to verify that the plotter's output has the correct
-structure for each combination of parameters and configuration.
-
-Strategy
---------
-``ECGPlotter.plot()`` returns a ``Figure``.  We can assert:
-
-* **Figure size** — ``fig.get_size_inches()`` must match ``_compute_figure_size()``.
-* **Line count** — each row draws 1 signal line + 1 calibration line (if enabled);
-  ``grid_mode='cm'`` adds many more lines via ``axvline``/``axhline``.
-* **Text content** — lead labels (``show_leads_labels``), calibration "1mV" tags
-  (``show_calibration``), and diagnostic / patient / stats strings
-  (``print_information``) are all reflected in ``ax.texts``.
-* **Time axis visibility** — ``ax.xaxis.get_visible()`` tracks ``show_time_axis``.
-
-All tests use synthetic ECG data so no network access is required.
-"""
+"""Structural tests that validate ECGPlotter output by inspecting the rendered Matplotlib figure."""
 
 import matplotlib
 
@@ -30,9 +11,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pmecg import LeadsMap
+from pmecg import LeadsMap, template_factory
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
-from pmecg.utils.data import TEMPLATE_CONFIGURATIONS
+from pmecg.utils.data import SUPPORTED_TEMPLATES, _template_configuration
 from pmecg.utils.plot import (
     LEFT_MARGIN_MM,
     MM_PER_INCH,
@@ -88,12 +69,7 @@ def _texts(fig) -> list[str]:
 
 
 def _grid_lines(ax):
-    """Return (vline_x_positions, hline_y_positions) for all 2-point grid lines on ax.
-
-    ``axvline``/``axhline`` each create a 2-point ``Line2D``:
-    * axvline(x): xdata=[x, x]  ydata=[0, 1] (axes coords)
-    * axhline(y): xdata=[0, 1]  ydata=[y, y] (data coords)
-    """
+    """Return the x and y positions of all 2-point vertical and horizontal grid lines on an axis."""
     two_pt = [ln for ln in ax.lines if len(ln.get_xdata()) == 2]
     vx = sorted(ln.get_xdata()[0] for ln in two_pt if ln.get_xdata()[0] == ln.get_xdata()[1])
     hy = sorted(ln.get_ydata()[0] for ln in two_pt if ln.get_ydata()[0] == ln.get_ydata()[1])
@@ -104,15 +80,7 @@ def _resolve_rows(configuration) -> list[list[str]]:
     """Normalize any configuration format to list[list[str]] (one sublist per row)."""
     if configuration is None:
         return [[lead] for lead in LEAD_NAMES]
-    if isinstance(configuration, str):
-        if configuration in TEMPLATE_CONFIGURATIONS:
-            config = TEMPLATE_CONFIGURATIONS[configuration]
-        else:
-            # Single lead name string
-            config = [configuration]
-    else:
-        config = configuration
-    return [[e] if isinstance(e, str) else e for e in config]
+    return [[e] if isinstance(e, str) else e for e in configuration]
 
 
 def _should_warn_divisible(configuration, n_samples):
@@ -131,6 +99,10 @@ def maybe_warns_divisible(configuration, n_samples):
     return nullcontext()
 
 
+def _make_template_configuration(template_key: str, ecg_data, leads_map: LeadsMap | None = None):
+    return template_factory(template_key, ecg_data, leads_map)
+
+
 # ── Figure size ────────────────────────────────────────────────────────────
 
 
@@ -143,6 +115,7 @@ def maybe_warns_divisible(configuration, n_samples):
         (None, 12),
     ],
 )
+# Checks that the rendered figure dimensions match the layout math for each tested configuration.
 def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
     """Figure dimensions must equal _compute_figure_size() for the given layout."""
     plotter = ECGPlotter(grid_mode=None, print_information=False)
@@ -168,6 +141,7 @@ def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
 
 
 @pytest.mark.parametrize("print_information", [True, False])
+# Checks that enabling printed metadata increases figure height by the expected margin amount.
 def test_figure_height_grows_with_print_information(ecg_df, print_information):
     """Extra top/bottom margins are added when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=print_information)
@@ -205,6 +179,7 @@ def test_figure_height_grows_with_print_information(ecg_df, print_information):
         (6, False),
     ],
 )
+# Checks that each plotted row contributes one signal line plus an optional calibration line.
 def test_line_count(ecg_df, n_rows, show_calibration):
     """Without grid, each row contributes exactly 1 signal line + 1 calibration line (if on)."""
     configuration = LEAD_NAMES[:n_rows]
@@ -221,6 +196,7 @@ def test_line_count(ecg_df, n_rows, show_calibration):
 # ── Grid ───────────────────────────────────────────────────────────────────
 
 
+# Checks that the fine ECG paper grid is drawn at exactly 1 mm spacing in both directions.
 def test_grid_minor_spacing(ecg_df):
     """Adjacent grid lines (minor ticks) are spaced exactly 1 mm apart in both axes."""
     plotter = ECGPlotter(grid_mode="cm", show_calibration=False)
@@ -236,6 +212,7 @@ def test_grid_minor_spacing(ecg_df):
         plt.close(fig)
 
 
+# Checks that the heavy ECG paper grid is drawn at exactly 5 mm spacing in both directions.
 def test_grid_major_spacing(ecg_df):
     """Major (thick) grid lines are spaced exactly 5 mm apart in both axes."""
     major_lw = 0.6
@@ -270,6 +247,7 @@ def test_grid_major_spacing(ecg_df):
         (None, False),
     ],
 )
+# Checks that enabling centimeter grid mode adds many extra line artists beyond the signal traces.
 def test_grid_line_count(ecg_df, grid_mode, expect_many_lines):
     """grid_mode='cm' adds many axvline/axhline lines; None adds none."""
     plotter = ECGPlotter(grid_mode=grid_mode, print_information=False, show_calibration=False)
@@ -290,6 +268,7 @@ def test_grid_line_count(ecg_df, grid_mode, expect_many_lines):
 
 
 @pytest.mark.parametrize("show_time_axis", [True, False])
+# Checks that the x-axis visibility flag is reflected directly on the rendered axis.
 def test_time_axis_visibility(ecg_df, show_time_axis):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_time_axis=show_time_axis)
     configuration = ["I"]
@@ -304,32 +283,25 @@ def test_time_axis_visibility(ecg_df, show_time_axis):
 # ── Lead labels ────────────────────────────────────────────────────────────
 
 # 1xL keys: flat-list templates (no split rows) whose leads form the "source" DataFrame.
-_ONE_X_L_KEYS = [k for k, v in TEMPLATE_CONFIGURATIONS.items() if all(isinstance(e, str) for e in v)]
+_ONE_X_L_KEYS = [k for k in SUPPORTED_TEMPLATES if all(isinstance(e, str) for e in _template_configuration(k))]
 
 
 def _template_unique_leads(template_key: str) -> list[str]:
     """Return deduplicated leads referenced by a template (order-preserving)."""
     seen: dict[str, None] = {}
-    for entry in TEMPLATE_CONFIGURATIONS[template_key]:
+    for entry in _template_configuration(template_key):
         for lead in [entry] if isinstance(entry, str) else entry:
             seen[lead] = None
     return list(seen)
 
 
 @pytest.mark.parametrize("show_leads_labels", [True, False])
-@pytest.mark.parametrize("plot_key", list(TEMPLATE_CONFIGURATIONS.keys()))
+@pytest.mark.parametrize("plot_key", SUPPORTED_TEMPLATES)
 @pytest.mark.parametrize("source_key", _ONE_X_L_KEYS)
+# Checks that template lead labels render only when enabled and that templates fail when source leads are missing.
 def test_lead_labels(source_key, plot_key, show_leads_labels):
-    """Lead labels are rendered iff show_leads_labels=True; missing leads raise an error.
-
-    For every 1xL source configuration (DataFrame restricted to that template's leads)
-    and every plot template:
-    * If the template only references leads present in the source DataFrame → plot()
-      must succeed; labels appear or are absent according to show_leads_labels.
-    * If the template references any lead absent from the source DataFrame → plot()
-      must raise a KeyError (pandas column access) regardless of show_leads_labels.
-    """
-    source_leads = list(TEMPLATE_CONFIGURATIONS[source_key])
+    """Lead labels appear only when enabled, and templates fail when the source data lacks required leads."""
+    source_leads = list(_template_configuration(source_key))
     rng = np.random.default_rng(42)
     data = rng.standard_normal((N_SAMPLES, len(source_leads))) * 0.5
     df = pd.DataFrame(data, columns=source_leads)
@@ -341,12 +313,12 @@ def test_lead_labels(source_key, plot_key, show_leads_labels):
 
     if not template_fits:
         with maybe_warns_divisible(plot_key, N_SAMPLES):
-            with pytest.raises(KeyError):
-                plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
+            with pytest.raises(ValueError, match="requires conventional lead"):
+                plotter.plot(df, _make_template_configuration(plot_key, df), sampling_frequency=FS, show=False)
         return
 
     with maybe_warns_divisible(plot_key, N_SAMPLES):
-        fig = plotter.plot(df, plot_key, sampling_frequency=FS, show=False)
+        fig = plotter.plot(df, _make_template_configuration(plot_key, df), sampling_frequency=FS, show=False)
     try:
         texts = _texts(fig)
         if show_leads_labels:
@@ -372,6 +344,7 @@ def test_lead_labels(source_key, plot_key, show_leads_labels):
         (False, 3),
     ],
 )
+# Checks that each enabled calibration pulse contributes one visible "1mV" annotation per row.
 def test_calibration_1mv_text(ecg_df, show_calibration, n_rows):
     """Each calibration pulse adds a '1mV' text annotation; count must match n_rows."""
     configuration = LEAD_NAMES[:n_rows]
@@ -389,6 +362,7 @@ def test_calibration_1mv_text(ecg_df, show_calibration, n_rows):
 
 
 @pytest.mark.parametrize("print_information", [True, False])
+# Checks that diagnostic footer text appears only when print_information is enabled.
 def test_diagnostics_text_presence(ecg_df, print_information):
     """Speed/Voltage/Freq diagnostics appear iff print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=print_information)
@@ -402,12 +376,13 @@ def test_diagnostics_text_presence(ecg_df, print_information):
         plt.close(fig)
 
 
+# Checks that template-driven label rendering uses custom lead names instead of conventional labels.
 def test_template_labels_use_custom_names(custom_ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    configuration = _make_template_configuration("4x3", custom_ecg_df, CUSTOM_LEADS_MAP)
     fig = plotter.plot(
         custom_ecg_df,
-        "4x3",
-        leads_map=CUSTOM_LEADS_MAP,
+        configuration,
         sampling_frequency=FS,
         show=False,
     )
@@ -415,18 +390,19 @@ def test_template_labels_use_custom_names(custom_ecg_df):
         texts = _texts(fig)
         for lead in ["LI", "aVR-custom", "Chest-1", "Chest-4", "LII", "Chest-6"]:
             assert lead in texts
-        for canonical in ["I", "AVR", "V1", "V4", "II", "V6"]:
-            assert canonical not in texts
+        for conventional in ["I", "AVR", "V1", "V4", "II", "V6"]:
+            assert conventional not in texts
     finally:
         plt.close(fig)
 
 
+# Checks that the diagnostic metadata line lists the caller's custom lead names rather than conventional ones.
 def test_diagnostics_leads_use_custom_names(custom_ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=True, show_leads_labels=False)
+    configuration = _make_template_configuration("4x3", custom_ecg_df, CUSTOM_LEADS_MAP)
     fig = plotter.plot(
         custom_ecg_df,
-        "4x3",
-        leads_map=CUSTOM_LEADS_MAP,
+        configuration,
         sampling_frequency=FS,
         show=False,
     )
@@ -441,14 +417,15 @@ def test_diagnostics_leads_use_custom_names(custom_ecg_df):
         plt.close(fig)
 
 
+# Checks that tuple-form ECG input still resolves templates and labels correctly with custom lead names.
 def test_tuple_input_with_custom_names_and_template():
     rng = np.random.default_rng(7)
     ecg_array = rng.standard_normal((N_SAMPLES, len(CUSTOM_LEAD_NAMES))) * 0.5
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
+    configuration = _make_template_configuration("4x3", (ecg_array, CUSTOM_LEAD_NAMES), CUSTOM_LEADS_MAP)
     fig = plotter.plot(
         (ecg_array, CUSTOM_LEAD_NAMES),
-        "4x3",
-        leads_map=CUSTOM_LEADS_MAP,
+        configuration,
         sampling_frequency=FS,
         show=False,
     )
@@ -460,6 +437,7 @@ def test_tuple_input_with_custom_names_and_template():
         plt.close(fig)
 
 
+# Checks that hand-written configurations using custom labels plot successfully and show those labels.
 def test_custom_configuration_with_custom_names(custom_ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
     configuration = [["LI", "aVR-custom", "Chest-1"], "Chest-6"]
@@ -467,7 +445,6 @@ def test_custom_configuration_with_custom_names(custom_ecg_df):
         fig = plotter.plot(
             custom_ecg_df,
             configuration,
-            leads_map=CUSTOM_LEADS_MAP,
             sampling_frequency=FS,
             show=False,
         )
@@ -481,37 +458,31 @@ def test_custom_configuration_with_custom_names(custom_ecg_df):
         plt.close(fig)
 
 
-def test_custom_configuration_with_canonical_names(custom_ecg_df):
+# Checks that conventional lead names are rejected when a custom-labeled DataFrame is plotted directly.
+def test_custom_configuration_with_canonical_names_raises(custom_ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
     configuration = [["I", "AVR", "V1"], "V6"]
-    with maybe_warns_divisible(configuration, N_SAMPLES):
-        fig = plotter.plot(
+    with pytest.raises(ValueError, match="Lead name 'I' in configuration is not present"):
+        plotter.plot(
             custom_ecg_df,
             configuration,
-            leads_map=CUSTOM_LEADS_MAP,
             sampling_frequency=FS,
             show=False,
         )
-    try:
-        texts = _texts(fig)
-        for lead in ["LI", "aVR-custom", "Chest-1", "Chest-6"]:
-            assert lead in texts
-    finally:
-        plt.close(fig)
 
 
+# Checks that template generation fails when the custom lead map omits a required conventional lead.
 def test_template_missing_mapping_raises(custom_ecg_df):
     partial_map = CUSTOM_LEADS_MAP._replace(AVR=None)
-    plotter = ECGPlotter(grid_mode=None, print_information=False)
-    with pytest.raises(ValueError, match="Template '4x3' requires canonical lead 'AVR'"):
-        plotter.plot(custom_ecg_df, "4x3", leads_map=partial_map, sampling_frequency=FS, show=False)
+    with pytest.raises(ValueError, match="Template '4x3' requires conventional lead 'AVR'"):
+        _make_template_configuration("4x3", custom_ecg_df, partial_map)
 
 
+# Checks that duplicate custom labels in the lead map are rejected during template generation.
 def test_duplicate_custom_names_in_map_raise(custom_ecg_df):
     duplicate_map = CUSTOM_LEADS_MAP._replace(III="LII")
-    plotter = ECGPlotter(grid_mode=None, print_information=False)
     with pytest.raises(ValueError, match="Duplicate custom lead name 'LII'"):
-        plotter.plot(custom_ecg_df, "4x3", leads_map=duplicate_map, sampling_frequency=FS, show=False)
+        _make_template_configuration("4x3", custom_ecg_df, duplicate_map)
 
 
 # ── print_information: patient metadata ───────────────────────────────────
@@ -528,6 +499,7 @@ def test_duplicate_custom_names_in_map_raise(custom_ecg_df):
         (ECGInformation(filter="0.05-150 Hz"), "0.05-150 Hz"),
     ],
 )
+# Checks that each supplied patient-information field is rendered into the printed metadata area.
 def test_patient_info_content(ecg_df, information, needle):
     """Each ECGInformation field is rendered as text when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
@@ -559,6 +531,7 @@ def test_patient_info_content(ecg_df, information, needle):
         (ECGStats(t_axis_deg=45.0), "T ax.", "45"),
     ],
 )
+# Checks that each supplied ECGStats field renders its label and numeric value in the metadata area.
 def test_stats_content(ecg_df, stats, label, value_substr):
     """Each ECGStats field is rendered as 'LABEL: value' text when print_information=True."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
@@ -573,6 +546,7 @@ def test_stats_content(ecg_df, stats, label, value_substr):
         plt.close(fig)
 
 
+# Checks that stats are completely suppressed when print_information is disabled.
 def test_stats_absent_when_no_print_information(ecg_df):
     """Stats are not rendered when print_information=False."""
     plotter = ECGPlotter(grid_mode=None, print_information=False)
@@ -596,6 +570,7 @@ def test_stats_absent_when_no_print_information(ecg_df):
 ALL_STATS_LABELS = ["BPM", "S/N", "RR", "HRV", "PR", "QRS", "QT", "QTc", "P ax.", "QRS ax.", "T ax."]
 
 
+# Checks that a fully populated ECGInformation object prints every expected field.
 def test_full_ecginformation_all_fields_printed(ecg_df):
     """When all ECGInformation fields are set every field appears in the figure."""
     info = ECGInformation(
@@ -619,6 +594,7 @@ def test_full_ecginformation_all_fields_printed(ecg_df):
         plt.close(fig)
 
 
+# Checks that a fully populated ECGStats object prints every supported stats label.
 def test_full_ecgstats_all_fields_printed(ecg_df):
     """When all ECGStats fields are set every label appears in the figure."""
     stats = ECGStats(
@@ -679,12 +655,9 @@ def test_full_ecgstats_all_fields_printed(ecg_df):
         ),
     ],
 )
+# Checks that only non-None ECGStats fields render labels while unset fields stay absent.
 def test_partial_ecgstats(ecg_df, stats, present_labels, absent_labels):
-    """Only non-None ECGStats fields produce a label; None fields are silently omitted.
-
-    We search for ``"LABEL:"`` (with colon) rather than bare label strings to avoid
-    substring false-positives (e.g. ``"QRS"`` inside ``"QRS ax.: …"``).
-    """
+    """Only populated ECGStats fields render labels, matched via `LABEL:` to avoid substring collisions."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
     configuration = ["I"]
     with maybe_warns_divisible(configuration, N_SAMPLES):
@@ -753,6 +726,7 @@ def test_partial_ecgstats(ecg_df, stats, present_labels, absent_labels):
         ),
     ],
 )
+# Checks that only populated ECGInformation fields appear in the metadata header.
 def test_partial_ecginformation(ecg_df, information, present_strings, absent_strings):
     """Only set ECGInformation fields appear; unset fields produce no text."""
     plotter = ECGPlotter(grid_mode=None, print_information=True)
@@ -780,12 +754,9 @@ def test_partial_ecginformation(ecg_df, information, present_strings, absent_str
         ([["I", "II"], ["III", "AVR"]], 2),
     ],
 )
+# Checks that the plotted waveform width matches the recording duration converted by paper speed.
 def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
-    """Signal lines span exactly (N_SAMPLES - 1) / FS * speed mm horizontally.
-
-    This verifies the time-to-inches conversion: the physical width of the plotted
-    signal must equal the recording duration times the paper speed.
-    """
+    """Signal width must match the recording duration converted through the configured ECG paper speed."""
     speed = 50.0  # ECGPlotter default
     expected_span_mm = (N_SAMPLES - 1) * speed / FS
     left_margin_in = LEFT_MARGIN_MM / MM_PER_INCH
@@ -824,11 +795,13 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
         ("4x3", 4),  # 3 split rows + 1 rhythm strip
     ],
 )
+# Checks that each named template expands to the expected number of visible ECG rows.
 def test_template_row_count(ecg_df, template_key, expected_n_rows):
     """Each named template produces the correct number of ECG rows."""
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
-    with maybe_warns_divisible(template_key, N_SAMPLES):
-        fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
+    configuration = _make_template_configuration(template_key, ecg_df)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         # 1 line per row (show_calibration=False, no grid)
         assert len(_ax(fig).lines) == expected_n_rows
@@ -836,10 +809,11 @@ def test_template_row_count(ecg_df, template_key, expected_n_rows):
         plt.close(fig)
 
 
-@pytest.mark.parametrize("template_key", list(TEMPLATE_CONFIGURATIONS.keys()))
+@pytest.mark.parametrize("template_key", SUPPORTED_TEMPLATES)
+# Checks that every unique lead referenced by a template gets a corresponding on-figure label.
 def test_template_all_lead_labels(ecg_df, template_key):
     """Every lead in a template appears as a text label on the figure."""
-    config = TEMPLATE_CONFIGURATIONS[template_key]
+    config = _template_configuration(template_key)
     expected_leads: list[str] = []
     for entry in config:
         if isinstance(entry, list):
@@ -849,8 +823,9 @@ def test_template_all_lead_labels(ecg_df, template_key):
     expected_leads = list(dict.fromkeys(expected_leads))  # deduplicate, preserve order
 
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
-    with maybe_warns_divisible(template_key, N_SAMPLES):
-        fig = plotter.plot(ecg_df, template_key, sampling_frequency=FS, show=False)
+    configuration = _make_template_configuration(template_key, ecg_df)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
         texts = _texts(fig)
         for lead in expected_leads:
@@ -869,22 +844,12 @@ def test_template_all_lead_labels(ecg_df, template_key):
         [["I", "V1"], ["II", "V2"]],
         # User's example: split rows + repeated lead "II" as a rhythm strip
         [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
-        "4x3",
+        _template_configuration("4x3"),
     ],
 )
+# Checks that lead labels land at the expected row and segment positions for several layout shapes.
 def test_lead_label_positions(ecg_df, configuration):
-    """Each lead label appears at the correct row (y) and left-to-right segment order (x).
-
-    Strategy
-    --------
-    We recompute the expected (x, y) for every label using the same formulas as
-    ``_plot_row``, then verify:
-
-    * Each label is present at its expected (x, y) position (within 1e-9 in).
-    * Within every row, label x-coordinates are strictly increasing left to right.
-    * Repeated leads (e.g. "II" in two different rows) are distinguished by y,
-      so each occurrence is checked independently.
-    """
+    """Lead labels must land at the expected row and left-to-right segment positions for each layout."""
     speed, voltage, row_distance = 50.0, 20.0, 2.0
     rows = _resolve_rows(configuration)
     n_rows = len(rows)
@@ -943,3 +908,10 @@ def test_lead_label_positions(ecg_df, configuration):
                     )
     finally:
         plt.close(fig)
+
+
+# Checks that plot() rejects a bare template string instead of silently treating it as a valid configuration.
+def test_plot_rejects_template_string_configuration(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False)
+    with pytest.raises(ValueError, match="configuration must be a list"):
+        plotter.plot(ecg_df, "4x3", sampling_frequency=FS, show=False)

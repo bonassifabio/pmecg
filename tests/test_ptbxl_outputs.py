@@ -1,12 +1,4 @@
-"""Integration test: fetch the first 5 PTB-XL records and save plots as PNG + PDF.
-
-Requires network access. Run with::
-
-    uv run pytest tests/test_ptbxl_outputs.py -v
-
-Outputs are written to ``example/outputs/{ecg_id}/{configuration}.{ext}``.
-Files are only (over)written when their content has changed.
-"""
+"""Integration test that fetches PTB-XL records and saves deterministic PNG and PDF plot outputs."""
 
 import matplotlib
 
@@ -21,6 +13,7 @@ import pandas as pd
 import pytest
 from ptbxl_helper import get_ptbxl_data
 
+from pmecg import template_factory
 from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
@@ -45,10 +38,7 @@ def _figure_bytes(fig, fmt: str) -> bytes:
 
 
 def _save_if_changed(fig, path: str, fmt: str) -> bool:
-    """Write *fig* to *path* only when the content differs from the existing file.
-
-    Returns ``True`` when the file was written, ``False`` when it was skipped.
-    """
+    """Write a figure only when the newly rendered bytes differ from the file already on disk."""
     new_bytes = _figure_bytes(fig, fmt)
     new_hash = hashlib.md5(new_bytes).hexdigest()
 
@@ -64,6 +54,7 @@ def _save_if_changed(fig, path: str, fmt: str) -> bool:
 
 @pytest.mark.parametrize("configuration", CONFIGURATIONS)
 @pytest.mark.parametrize("ecg_id", ECG_IDS)
+# Checks that each sampled PTB-XL record can be plotted and saved as non-empty PNG and PDF outputs.
 def test_ptbxl_plot_saved(ecg_id, configuration):
     """Plot a PTB-XL record and save it as PNG and PDF."""
     record, metadata, stats = get_ptbxl_data(ecg_id)
@@ -79,9 +70,10 @@ def test_ptbxl_plot_saved(ecg_id, configuration):
     os.makedirs(out_dir, exist_ok=True)
 
     plotter = ECGPlotter(grid_mode="cm", print_information=True)
+    plot_configuration = template_factory(configuration, df, leads_map=None)
     fig = plotter.plot(
         df,
-        configuration,
+        plot_configuration,
         sampling_frequency=record.fs,
         show=False,
         information=info,

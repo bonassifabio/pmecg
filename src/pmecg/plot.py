@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,7 +9,8 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from .utils.data import (
-    LeadsMap,
+    ConfigurationDataType,
+    ECGDataType,
     _apply_configuration,
     _numpy_to_dataframe,
     _resolve_configuration,
@@ -107,13 +108,6 @@ class ECGInformation:
     filter: str | None = None
 
 
-ECGDataType = Union[
-    tuple[Union[list[np.ndarray], np.ndarray], list[str]],
-    pd.DataFrame,
-]
-ConfigurationDataType = Union[list[Union[list[str], str]], str]
-
-
 class ECGPlotter:
     def __init__(
         self,
@@ -185,7 +179,6 @@ class ECGPlotter:
         self,
         ecg_data: ECGDataType,
         configuration: ConfigurationDataType | None = None,
-        leads_map: LeadsMap | None = None,
         sampling_frequency: float = 500.0,
         show: bool = True,
         information: ECGInformation | None = None,
@@ -204,18 +197,11 @@ class ECGPlotter:
                 - pd.DataFrame, where each column corresponds to a lead and the column names are the names of the leads
         configuration : ConfigurationDataType | None, optional
             The plotting configuration to be used. The following formats are supported:
-                - list[list[str] | str], where sub-lists indicate what leads are plotted in
-                  each row, while strings are used to indicate that the lead should be plotted
+                - ConfigurationDataType, where sub-lists indicate what leads are plotted in
+                  each row, while strings indicate that the lead should be plotted
                   for its entire duration.
-                - str, to indicate notable templates.
-                - None, to plot all leads in the DataFrame for their entire duration.
+                - None, to plot all leads in the input ECG data for their entire duration.
                 By default None.
-        leads_map : LeadsMap | None, optional
-            Optional mapping from canonical template slots (e.g. ``"II"``, ``"V1"``)
-            to the exact lead names used in ``ecg_data``. Template configurations always
-            use canonical slots internally; this mapping lets them resolve to custom
-            input names while preserving those custom names in rendered labels and
-            diagnostics. By default None.
         sampling_frequency : float, optional
             The sampling frequency of the ECG data in Hz, by default 500.0
         show : bool, optional
@@ -236,21 +222,17 @@ class ECGPlotter:
         """
         if isinstance(ecg_data, tuple):
             df_data = _numpy_to_dataframe(ecg_data[0], ecg_data[1])
-        elif isinstance(ecg_data, np.ndarray) or (
-            isinstance(ecg_data, list) and len(ecg_data) > 0 and all(isinstance(row, np.ndarray) for row in ecg_data)
-        ):
-            df_data = _numpy_to_dataframe(ecg_data)
         elif isinstance(ecg_data, pd.DataFrame):
             df_data = ecg_data
         else:
             raise ValueError(
                 "ecg_data must be a tuple of (list of numpy arrays, list of lead names), "
-                "a numpy array, a list of numpy arrays, or a pandas DataFrame"
+                "a tuple of (numpy array, list of lead names), or a pandas DataFrame"
             )
 
         _validate_input_lead_names(list(df_data.columns))
 
-        resolved_configuration = _resolve_configuration(configuration, list(df_data.columns), leads_map=leads_map)
+        resolved_configuration = _resolve_configuration(configuration, list(df_data.columns))
 
         # Apply the layout configuration → one (signal, leads) pair per row
         rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
