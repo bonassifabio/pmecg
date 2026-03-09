@@ -49,11 +49,10 @@ _TEMPLATE_CONFIGURATIONS: dict[str, ConfigurationDataType] = {
 
 
 def _normalize_canonical_lead_name(lead_name: str) -> str:
-    """Return the conventional spelling for a supported standard lead."""
-    normalized = lead_name.upper()
-    if normalized not in SUPPORTED_LEADS:
+    """Validate that a supported standard lead name matches exactly."""
+    if lead_name not in SUPPORTED_LEADS:
         raise ValueError(f"Lead name '{lead_name}' is not supported. Supported leads are: {SUPPORTED_LEADS}")
-    return normalized
+    return lead_name
 
 
 def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = None) -> pd.DataFrame:
