@@ -17,7 +17,11 @@
 
 | 1×3 layout | 4×3 layout |
 |:---:|:---:|
-| ![1x3 ECG](example/outputs/1/1x3.png) | ![4x3 ECG](example/outputs/1/4x3.png) |
+| ![1x3 ECG](example/outputs/no-attention/1/1x3.png) | ![4x3 ECG](example/outputs/no-attention/1/4x3.png) |
+
+| Interval attention | Line-color attention | Background attention |
+|:---:|:---:|:---:|
+| ![Interval attention ECG](example/outputs/attention/4x3-interval-signed.png) | ![Line-color attention ECG](example/outputs/attention/4x3-line-color-signed.png) | ![Background attention ECG](example/outputs/attention/4x3-background-signed.png) |
 
 ## Features
 
@@ -195,6 +199,64 @@ plotter = pmecg.ECGPlotter(
     show_time_axis=True   # Show time ticks at the bottom
 )
 ```
+
+### Attention Maps
+
+Attention overlays are class-based. Instantiate one of
+`pmecg.BackgroundAttentionMap`, `pmecg.IntervalAttentionMap`, or
+`pmecg.LineColorAttentionMap`, then pass it to `ECGPlotter.plot()`.
+
+Each attention class:
+
+- accepts the attention data directly (`pd.DataFrame` or the same tuple formats accepted for ECG input),
+- validates and aligns it against the plotted ECG leads,
+- requires an explicit `polarity`:
+  - `"positive"` for non-negative attention values, rendered with a single color,
+  - `"signed"` for attention values spanning both negative and positive values, rendered with two colors,
+- automatically rescales the prepared attention data with one global factor across all columns:
+  - positive attention is divided by its global maximum only when that maximum exceeds `1`,
+  - signed attention is divided by the global maximum absolute value only when that magnitude exceeds `1`,
+- segments the attention values row-by-row so multi-column ECG layouts work automatically.
+
+Whenever an attention map exposes a gradient, `ECGPlotter.plot()` adds a
+right-side color scale automatically and widens the right margin so the ECG
+trace keeps the same plotting area.
+
+```python
+signed_attention = pmecg.LineColorAttentionMap(
+    data=pd.DataFrame({"I": np.linspace(-2.0, 1.5, len(df))}),
+    polarity="signed",
+    color=("blue", "red"),
+)
+
+positive_attention = pmecg.IntervalAttentionMap(
+    data=pd.DataFrame({"I": np.linspace(0.0, 3.0, len(df))}),
+    polarity="positive",
+    color="darkorange",
+    max_attention_mV=0.4,
+    alpha=0.35,
+)
+```
+
+If the attention input contains a single vector, it is broadcast to all ECG
+leads before layout segmentation. Positive attention always uses the range
+`[0, max(attention)]` after any automatic scaling. Signed attention keeps its
+negative and positive extrema after any automatic scaling, so the color scale
+still reflects the actual prepared range.
+
+Constructor parameters:
+
+- `pmecg.BackgroundAttentionMap(...)`: `data`, `polarity`, `color`
+- `pmecg.IntervalAttentionMap(...)`: `data`, `polarity`, `color`, `max_attention_mV`, `alpha`
+- `pmecg.LineColorAttentionMap(...)`: `data`, `polarity`, `color`
+
+The `color` parameter depends on `polarity`:
+
+- `polarity="positive"` → pass a single matplotlib color string, such as `"red"` or `"#ff6600"`.
+- `polarity="signed"` → pass a `(negative_color, positive_color)` tuple, such as `("blue", "red")`.
+
+`LineColorAttentionMap` draws the regular black ECG trace first, then overlays a
+gradient-colored line collection on top of it.
 
 ## Development
 

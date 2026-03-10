@@ -6,6 +6,10 @@ from typing import Literal
 
 import matplotlib.axes
 import numpy as np
+from matplotlib.collections import Collection
+from matplotlib.patches import Rectangle
+
+from .attention import AbstractAttentionMap
 
 MM_PER_INCH = 25.4
 MARGIN_MM = 5.0  # margin above the first row, below the last row, and between rows
@@ -13,6 +17,10 @@ INFO_TOP_EXTRA_MARGIN_MM = 14.0  # extra top margin added when print_information
 INFO_BOT_EXTRA_MARGIN_MM = 8.0  # extra bottom margin added when print_information=True
 LEFT_MARGIN_MM = 15.0  # 1.5 cm left margin (accommodates calibration pulse)
 RIGHT_MARGIN_MM = 10.0  # 1 cm right margin
+COLORBAR_WIDTH_MM = 4.0
+COLORBAR_INNER_PAD_MM = 2.0
+COLORBAR_LABEL_PAD_MM = 1.5
+COLORBAR_TICK_LENGTH_MM = 1.0
 
 # Calibration pulse dimensions
 CAL_PULSE_WIDTH_MM = 5.0  # 1 large square wide
@@ -123,6 +131,7 @@ def _compute_figure_size(
     voltage: float,
     row_distance_mv: float,
     print_information: bool = False,
+    right_margin_mm: float = RIGHT_MARGIN_MM,
 ) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
 
@@ -143,6 +152,9 @@ def _compute_figure_size(
     print_information : bool, optional
         When True, extra top and bottom margins are added to accommodate
         the patient information and statistics text, by default False.
+    right_margin_mm : float, optional
+        Width of the right margin in millimetres. This is expanded when an
+        attention color scale needs to be drawn, by default ``RIGHT_MARGIN_MM``.
 
     Returns
     -------
@@ -153,7 +165,7 @@ def _compute_figure_size(
     # Total recording duration in seconds
     total_time_s = seq_len / sampling_frequency
     # Convert to mm: duration * speed, then add 1 cm on left and right
-    width_mm = total_time_s * speed + LEFT_MARGIN_MM + RIGHT_MARGIN_MM
+    width_mm = total_time_s * speed + LEFT_MARGIN_MM + right_margin_mm
     width_inches = width_mm / MM_PER_INCH
 
     # --- Height ---
@@ -254,6 +266,8 @@ def _plot_row(
     row: tuple[np.ndarray, list[str]],
     ctx: _RenderContext,
     y_offset: float,
+    attention_values: np.ndarray | None = None,
+    attention_map: AbstractAttentionMap | None = None,
 ) -> None:
     """Plot a single ECG row onto `ax`.
 
@@ -283,8 +297,25 @@ def _plot_row(
     # --- y axis ---
     # Scale the signal from mV to inches, then translate to the row's zero-line.
     y = signal * ctx.mv_to_inches + y_offset
+    row_half_height_inches = ctx.row_distance_inches / 2.0
 
-    ax.plot(x, y, color="black", linewidth=ctx.line_width)
+    if attention_map is not None and attention_values is not None:
+        for artist in attention_map.build_artists(
+            ax,
+            x,
+            y,
+            attention_values,
+            y_offset,
+            row_half_height_inches,
+            ctx.mv_to_inches,
+            ctx.line_width,
+        ):
+            if isinstance(artist, Collection):
+                ax.add_collection(artist)
+            else:
+                ax.add_artist(artist)
+
+    ax.plot(x, y, color="black", linewidth=ctx.line_width, zorder=3)
 
     if ctx.show_calibration:
         _plot_calibration_pulse(ax, ctx, y_offset)
@@ -293,7 +324,6 @@ def _plot_row(
     if ctx.show_leads_labels:
         # Each lead occupies an equal segment of the total sample length.
         # Place each label at the top-left corner of its segment's bounding box.
-        row_half_height_inches = ctx.row_distance_inches / 2.0
         segment_len = n_samples // n_leads
         for i, lead_name in enumerate(leads):
             # x: left edge of this segment (sample i*segment_len), shifted by the left margin
@@ -342,6 +372,63 @@ def _plot_grid(
     for i, y in enumerate(ys):
         lw = major_lw if i % 5 == 0 else minor_lw
         ax.axhline(y, color=ctx.grid_color, linewidth=lw, zorder=0)
+
+
+def _plot_attention_color_scale(
+    ax: matplotlib.axes.Axes,
+    attention_map: AbstractAttentionMap,
+    width_inches: float,
+    right_margin_mm: float,
+    top_inches: float,
+    bottom_inches: float,
+) -> None:
+    """Draw a vertical attention color scale inside the expanded right margin."""
+    rgba_image = attention_map.colormap_rgba()
+
+    colorbar_left = width_inches - (right_margin_mm / MM_PER_INCH) + (COLORBAR_INNER_PAD_MM / MM_PER_INCH)
+    colorbar_width = COLORBAR_WIDTH_MM / MM_PER_INCH
+    colorbar_right = colorbar_left + colorbar_width
+
+    ax.imshow(
+        rgba_image,
+        extent=(colorbar_left, colorbar_right, bottom_inches, top_inches),
+        origin="lower",
+        aspect="auto",
+        interpolation="nearest",
+        zorder=4,
+    )
+    ax.add_patch(
+        Rectangle(
+            (colorbar_left, bottom_inches),
+            colorbar_width,
+            top_inches - bottom_inches,
+            fill=False,
+            edgecolor="black",
+            linewidth=0.4,
+            zorder=5,
+        )
+    )
+
+    tick_end = colorbar_right + (COLORBAR_TICK_LENGTH_MM / MM_PER_INCH)
+    label_x = tick_end + (COLORBAR_LABEL_PAD_MM / MM_PER_INCH)
+    lower, upper = attention_map.range
+    tick_values = [upper, lower]
+    if lower < 0 < upper:
+        tick_values.insert(1, 0.0)
+
+    for value in tick_values:
+        y_pos = bottom_inches + ((value - lower) / (upper - lower)) * (top_inches - bottom_inches)
+        ax.plot([colorbar_right, tick_end], [y_pos, y_pos], color="black", linewidth=0.4, zorder=5)
+        ax.text(
+            label_x,
+            y_pos,
+            f"{value:.2g}",
+            va="center",
+            ha="left",
+            fontsize=6,
+            fontfamily="monospace",
+            zorder=5,
+        )
 
 
 def _print_information(
