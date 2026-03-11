@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Literal
+from numbers import Integral, Real
+from typing import Literal, TypedDict
 
 import matplotlib.axes
 import numpy as np
@@ -10,7 +11,14 @@ from matplotlib import colors as mcolors
 from matplotlib.artist import Artist
 from matplotlib.collections import LineCollection, PolyCollection
 
-from .data import ConfigurationDataType, _apply_configuration, _numpy_to_dataframe, _validate_input_lead_names
+from .data import (
+    ConfigurationDataType,
+    ECGDataType,
+    _apply_configuration,
+    _extract_input_leads,
+    _numpy_to_dataframe,
+    _validate_input_lead_names,
+)
 
 AttentionArrayType = np.ndarray | list[np.ndarray]
 AttentionDataType = tuple[AttentionArrayType, list[str]] | pd.DataFrame
@@ -19,6 +27,16 @@ AttentionColorType = str | tuple[str, str]
 BACKGROUND_MAX_ALPHA = 0.75
 DEFAULT_POSITIVE_COLOR = "red"
 DEFAULT_SIGNED_COLORS = ("blue", "red")
+
+
+class _TimeAnnotation(TypedDict):
+    time_range: list[float] | tuple[float, float]
+    attention_value: float
+
+
+class _IndexAnnotation(TypedDict):
+    index_range: list[int] | tuple[int, int]
+    attention_value: float
 
 
 class AbstractAttentionMap(ABC):
@@ -274,6 +292,123 @@ class LineColorAttentionMap(AbstractAttentionMap):
         ]
 
 
+def attention_map_from_indices_annotations(
+    ecg_data: ECGDataType,
+    **annotations_by_lead: list[_IndexAnnotation],
+) -> pd.DataFrame:
+    """Build an attention DataFrame from per-lead sample-index annotations.
+
+    Parameters
+    ----------
+    ecg_data : ECGDataType
+        ECG data used to determine the output lead names and number of samples.
+        The helper accepts the same DataFrame and tuple formats supported by
+        :class:`pmecg.ECGPlotter`.
+    **annotations_by_lead : list[dict]
+        Keyword arguments keyed by lead name. Each value must be a list of
+        dictionaries with the keys ``index_range`` and ``attention_value``.
+        ``index_range`` is interpreted as a half-open interval ``[start, end)``
+        over ECG sample indices.
+
+    Returns
+    -------
+    pd.DataFrame
+        Attention values aligned to the ECG samples, with one column per lead
+        and one row per ECG sample. Leads without annotations are filled with
+        zeros.
+
+    Raises
+    ------
+    ValueError
+        If a lead name is missing from ``ecg_data``, if an annotation payload is
+        malformed, or if an index range is invalid or falls outside the ECG
+        recording length.
+    """
+    lead_names = _extract_input_leads(ecg_data)
+    _validate_input_lead_names(lead_names)
+    n_samples = _extract_n_samples(ecg_data)
+    attention_df = pd.DataFrame(0.0, index=np.arange(n_samples), columns=lead_names)
+
+    for lead_name, lead_annotations in annotations_by_lead.items():
+        if lead_name not in attention_df.columns:
+            raise ValueError(f"Lead name {lead_name!r} is not present in ecg_data")
+        if not isinstance(lead_annotations, list):
+            raise ValueError(f"Annotations for lead {lead_name!r} must be provided as a list")
+
+        for annotation in lead_annotations:
+            start_idx, end_idx, attention_value = _resolve_indices_annotation(
+                annotation,
+                lead_name=lead_name,
+                n_samples=n_samples,
+            )
+            attention_df.iloc[start_idx:end_idx, attention_df.columns.get_loc(lead_name)] = attention_value
+
+    return attention_df
+
+
+def attention_map_from_time_annotations(
+    ecg_data: ECGDataType,
+    fs: float,
+    **annotations_by_lead: list[_TimeAnnotation],
+) -> pd.DataFrame:
+    """Build an attention DataFrame from per-lead time annotations.
+
+    Parameters
+    ----------
+    ecg_data : ECGDataType
+        ECG data used to determine the output lead names and number of samples.
+    fs : float
+        Sampling frequency in Hz.
+    **annotations_by_lead : list[dict]
+        Keyword arguments keyed by lead name. Each value must be a list of
+        dictionaries with the keys ``time_range`` and ``attention_value``.
+        ``time_range`` is interpreted as a half-open interval ``[start, end)``
+        expressed in seconds.
+
+    Returns
+    -------
+    pd.DataFrame
+        Attention values aligned to the ECG samples, with one column per lead
+        and one row per ECG sample. Leads without annotations are filled with
+        zeros.
+
+    Raises
+    ------
+    ValueError
+        If ``fs`` is invalid, if a lead name is missing from ``ecg_data``, if an
+        annotation payload is malformed, or if a time range is invalid or falls
+        outside the ECG recording duration.
+    """
+    if not isinstance(fs, Real) or float(fs) <= 0:
+        raise ValueError("fs must be a positive number")
+
+    n_samples = _extract_n_samples(ecg_data)
+    sampling_frequency = float(fs)
+    recording_duration_seconds = n_samples / sampling_frequency
+    indices_annotations_by_lead: dict[str, list[_IndexAnnotation]] = {}
+
+    for lead_name, lead_annotations in annotations_by_lead.items():
+        if not isinstance(lead_annotations, list):
+            raise ValueError(f"Annotations for lead {lead_name!r} must be provided as a list")
+
+        indices_annotations_by_lead[lead_name] = [
+            {
+                "index_range": list(
+                    _time_range_to_sample_bounds(
+                        _extract_time_range(annotation, lead_name=lead_name),
+                        fs=sampling_frequency,
+                        recording_duration_seconds=recording_duration_seconds,
+                        n_samples=n_samples,
+                    )
+                ),
+                "attention_value": _extract_attention_value(annotation, lead_name=lead_name),
+            }
+            for annotation in lead_annotations
+        ]
+
+    return attention_map_from_indices_annotations(ecg_data, **indices_annotations_by_lead)
+
+
 def _attention_to_dataframe(attention_data: AttentionDataType) -> pd.DataFrame:
     """Convert user attention data into a DataFrame without altering semantics."""
     if isinstance(attention_data, pd.DataFrame):
@@ -291,6 +426,137 @@ def _attention_to_dataframe(attention_data: AttentionDataType) -> pd.DataFrame:
         return pd.DataFrame(values.reshape(-1, 1), columns=normalized_lead_names)
 
     return _numpy_to_dataframe(values, normalized_lead_names)
+
+
+def _extract_n_samples(ecg_data: ECGDataType) -> int:
+    """Return the number of samples stored in ``ecg_data``."""
+    if isinstance(ecg_data, pd.DataFrame):
+        return int(ecg_data.shape[0])
+
+    values, lead_names = ecg_data
+    return int(_numpy_to_dataframe(values, [str(name) for name in lead_names]).shape[0])
+
+
+def _resolve_indices_annotation(
+    annotation: _IndexAnnotation,
+    *,
+    lead_name: str,
+    n_samples: int,
+) -> tuple[int, int, float]:
+    """Validate one index annotation and convert it to sample bounds."""
+    if not isinstance(annotation, dict):
+        raise ValueError(f"Each annotation for lead {lead_name!r} must be a dictionary")
+
+    start_idx, end_idx = _index_range_to_sample_bounds(annotation, n_samples=n_samples)
+    return start_idx, end_idx, _extract_attention_value(annotation, lead_name=lead_name)
+
+
+def _extract_attention_value(annotation: dict[str, object], *, lead_name: str) -> float:
+    """Return a validated annotation attention value."""
+    if not isinstance(annotation, dict):
+        raise ValueError(f"Each annotation for lead {lead_name!r} must be a dictionary")
+
+    if "attention_value" not in annotation:
+        raise ValueError(f"Each annotation for lead {lead_name!r} must contain 'attention_value'")
+
+    attention_value = annotation["attention_value"]
+    if not isinstance(attention_value, Real) or not np.isfinite(float(attention_value)):
+        raise ValueError(f"attention_value for lead {lead_name!r} must be a finite number")
+    return float(attention_value)
+
+
+def _extract_time_range(annotation: dict[str, object], *, lead_name: str) -> object:
+    """Return a validated raw time range payload."""
+    if not isinstance(annotation, dict):
+        raise ValueError(f"Each annotation for lead {lead_name!r} must be a dictionary")
+
+    expected_keys = {"time_range", "attention_value"}
+    missing_keys = expected_keys.difference(annotation)
+    if missing_keys:
+        raise ValueError(
+            f"Each time annotation for lead {lead_name!r} must contain "
+            + ", ".join(sorted(repr(key) for key in missing_keys))
+        )
+
+    unexpected_keys = set(annotation).difference(expected_keys)
+    if unexpected_keys:
+        raise ValueError(
+            f"Unsupported time annotation keys for lead {lead_name!r}: "
+            + ", ".join(sorted(repr(key) for key in unexpected_keys))
+        )
+
+    return annotation["time_range"]
+
+
+def _index_range_to_sample_bounds(annotation: _IndexAnnotation, *, n_samples: int) -> tuple[int, int]:
+    """Convert an index annotation into validated sample-index bounds."""
+    expected_keys = {"index_range", "attention_value"}
+    missing_keys = expected_keys.difference(annotation)
+    if missing_keys:
+        raise ValueError(
+            "Each index annotation must contain " + ", ".join(sorted(repr(key) for key in missing_keys))
+        )
+
+    unexpected_keys = set(annotation).difference(expected_keys)
+    if unexpected_keys:
+        raise ValueError(
+            "Unsupported index annotation keys: " + ", ".join(sorted(repr(key) for key in unexpected_keys))
+        )
+
+    index_range = annotation["index_range"]
+    if not isinstance(index_range, (list, tuple)) or len(index_range) != 2:
+        raise ValueError("index_range must be a list or tuple containing exactly two integers")
+
+    start_idx, end_idx = index_range
+    if not isinstance(start_idx, Integral) or not isinstance(end_idx, Integral):
+        raise ValueError("index_range values must be integers")
+
+    start_index = int(start_idx)
+    end_index = int(end_idx)
+    if start_index < 0 or end_index < 0:
+        raise ValueError("index_range values must be non-negative")
+    if end_index < start_index:
+        raise ValueError("index_range end must be greater than or equal to its start")
+    if end_index > n_samples:
+        raise ValueError("index_range end exceeds the ECG length")
+    if end_index <= start_index:
+        raise ValueError("index_range must span at least one ECG sample")
+    return start_index, end_index
+
+
+def _time_range_to_sample_bounds(
+    time_range: object,
+    *,
+    fs: float,
+    recording_duration_seconds: float,
+    n_samples: int,
+) -> tuple[int, int]:
+    """Convert a time range in seconds into sample-index bounds."""
+    if not isinstance(time_range, (list, tuple)) or len(time_range) != 2:
+        raise ValueError("time_range must be a list or tuple containing exactly two numbers")
+
+    start_time, end_time = time_range
+    if not isinstance(start_time, Real) or not isinstance(end_time, Real):
+        raise ValueError("time_range values must be numeric")
+
+    start_seconds = float(start_time)
+    end_seconds = float(end_time)
+    if not (np.isfinite(start_seconds) and np.isfinite(end_seconds)):
+        raise ValueError("time_range values must be finite")
+    if start_seconds < 0 or end_seconds < 0:
+        raise ValueError("time_range values must be non-negative")
+    if end_seconds < start_seconds:
+        raise ValueError("time_range end must be greater than or equal to its start")
+    if end_seconds > recording_duration_seconds:
+        raise ValueError("time_range end exceeds the ECG duration")
+
+    start_idx = int(np.floor(start_seconds * fs))
+    end_idx = int(np.ceil(end_seconds * fs))
+    start_idx = min(start_idx, n_samples)
+    end_idx = min(end_idx, n_samples)
+    if end_idx <= start_idx:
+        raise ValueError("time_range must span at least one ECG sample")
+    return start_idx, end_idx
 
 
 def _scale_attention_dataframe(df: pd.DataFrame, polarity: AttentionPolarity) -> tuple[pd.DataFrame, tuple[float, float]]:

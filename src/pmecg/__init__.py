@@ -16,6 +16,8 @@ from .plot import (
     ECGStats,
     IntervalAttentionMap,
     LineColorAttentionMap,
+    attention_map_from_indices_annotations,
+    attention_map_from_time_annotations,
 )
 from .utils.data import SUPPORTED_LEADS, LeadsMap, template_factory
 
@@ -29,5 +31,7 @@ __all__ = [
     "LeadsMap",
     "LineColorAttentionMap",
     "SUPPORTED_LEADS",
+    "attention_map_from_indices_annotations",
+    "attention_map_from_time_annotations",
     "template_factory",
 ]

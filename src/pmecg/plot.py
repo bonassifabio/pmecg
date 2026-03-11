@@ -13,6 +13,8 @@ from .utils.attention import (
     BackgroundAttentionMap,
     IntervalAttentionMap,
     LineColorAttentionMap,
+    attention_map_from_indices_annotations,
+    attention_map_from_time_annotations,
 )
 from .utils.data import (
     ConfigurationDataType,
@@ -45,6 +47,8 @@ __all__ = [
     "ECGStats",
     "IntervalAttentionMap",
     "LineColorAttentionMap",
+    "attention_map_from_indices_annotations",
+    "attention_map_from_time_annotations",
 ]
 
 
@@ -265,7 +269,8 @@ class ECGPlotter:
         prepared_attention = attention_map
         if prepared_attention is not None:
             prepared_attention.prepare(list(df_data.columns), df_data.shape[0], resolved_configuration)
-        has_gradient_attention = prepared_attention is not None and prepared_attention.shows_color_scale
+        reserves_attention_margin = prepared_attention is not None and prepared_attention.shows_color_scale
+        shows_attention_color_scale = reserves_attention_margin and not isinstance(prepared_attention, IntervalAttentionMap)
 
         # Apply the layout configuration → one (signal, leads) pair per row
         rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
@@ -300,7 +305,7 @@ class ECGPlotter:
             self.voltage,
             adjusted_row_distance,
             print_information=self.print_information,
-            right_margin_mm=RIGHT_MARGIN_MM * 2.0 if has_gradient_attention else RIGHT_MARGIN_MM,
+            right_margin_mm=RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
@@ -328,7 +333,7 @@ class ECGPlotter:
         last_row_zero_inches = y_offsets[-1]
         last_row_bottom_inches = last_row_zero_inches - ctx.row_distance_inches / 2.0
 
-        if has_gradient_attention and prepared_attention is not None:
+        if shows_attention_color_scale and prepared_attention is not None:
             _plot_attention_color_scale(
                 ax,
                 prepared_attention,

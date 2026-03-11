@@ -218,9 +218,18 @@ Each attention class:
   - signed attention is divided by the global maximum absolute value only when that magnitude exceeds `1`,
 - segments the attention values row-by-row so multi-column ECG layouts work automatically.
 
-Whenever an attention map exposes a gradient, `ECGPlotter.plot()` adds a
-right-side color scale automatically and widens the right margin so the ECG
-trace keeps the same plotting area.
+You can also generate attention inputs from sparse annotations before
+instantiating an attention-map class:
+
+- `pmecg.attention_map_from_indices_annotations(...)` fills a DataFrame from
+  per-lead sample-index ranges.
+- `pmecg.attention_map_from_time_annotations(...)` does the same from time
+  ranges in seconds and internally converts them to sample-index ranges using
+  the sampling frequency.
+
+Non-interval attention maps that expose a gradient add a right-side color
+scale automatically. Attention-aware layouts keep an expanded right margin so
+the ECG trace keeps the same plotting area.
 
 ```python
 signed_attention = pmecg.LineColorAttentionMap(
@@ -235,6 +244,24 @@ positive_attention = pmecg.IntervalAttentionMap(
     color="darkorange",
     max_attention_mV=0.4,
     alpha=0.35,
+)
+```
+
+```python
+annotated_attention = pmecg.attention_map_from_time_annotations(
+    df,
+    fs=fs,
+    I=[
+        {"time_range": [0.25, 0.45], "attention_value": 1.0},
+        {"time_range": [0.80, 1.10], "attention_value": 0.5},
+    ],
+    V2=[{"time_range": [0.30, 0.60], "attention_value": 0.8}],
+)
+
+indexed_attention = pmecg.attention_map_from_indices_annotations(
+    df,
+    I=[{"index_range": [125, 225], "attention_value": 1.0}],
+    V2=[{"index_range": [150, 300], "attention_value": 0.8}],
 )
 ```
 
