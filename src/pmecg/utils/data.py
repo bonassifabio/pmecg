@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from collections import Counter
 from collections.abc import Sequence
-from typing import NamedTuple, Union
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
