@@ -134,9 +134,9 @@ class ECGPlotter:
     def __init__(
         self,
         grid_mode: Literal["cm"] | None = "cm",
-        speed: float = 50.0,
-        voltage: float = 20.0,
-        row_distance: float = 2.0,
+        speed: float = 25.0,
+        voltage: float = 10.0,
+        row_distance: float = 3.0,
         line_width: float = 0.5,
         grid_color: str = "#f4aaaa",
         print_information: bool = False,
@@ -154,11 +154,11 @@ class ECGPlotter:
             with every 5th line slightly thicker. Pass None to disable the grid.
             By default 'cm'.
         speed : float, optional
-            The speed of the plot in mm/s, by default 50.0
+            The speed of the plot in mm/s, by default 25.0
         voltage : float, optional
-            The space (in mm) corresponding to 1 mV, by default 20.0
+            The space (in mm) corresponding to 1 mV, by default 10.0
         row_distance : float, optional
-            Distance between the zero-lines of consecutive rows, expressed in mV, by default 2.0
+            Distance between the zero-lines of consecutive rows, expressed in mV, by default 3.0
         line_width : float, optional
             Thickness of the ECG signal lines (and calibration pulse) in points, by default 0.5
         grid_color : str, optional
