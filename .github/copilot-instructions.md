@@ -58,6 +58,6 @@ ConfigurationDataType = list[list[str] | str]
 
 **Typing:** Full type annotations are required throughout (`py.typed` marker is present). Docstrings follow NumPy/SciPy style.
 
-**Linting:** Ruff with rules `E, W, F, I, UP, B` and line length 128, targeting Python 3.9+. The `pixi run lint` task runs `ruff check . && ruff format --check .`.
+**Linting:** Ruff with rules `E, W, F, I, UP, B` and line length 128, targeting Python 3.8+. The `pixi run lint` task runs `ruff check . && ruff format --check .`.
 
 **Tests:** `test_plot_systematic.py` uses `matplotlib.use("Agg")` for headless rendering. Tests are heavily parametrized across all built-in templates. New layout or data-handling changes should be validated against the systematic tests.
