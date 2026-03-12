@@ -253,7 +253,38 @@ def _extract_input_leads(ecg_data: ECGDataType) -> list[str]:
 
 
 def template_factory(template: str, ecg_data: ECGDataType, leads_map: LeadsMap | None) -> ConfigurationDataType:
-    """Resolve a built-in template to an explicit configuration for the provided ECG input."""
+    """Resolve a built-in template to an explicit configuration for the provided ECG input.
+
+    Parameters
+    ----------
+    template : str
+        Name of the built-in template to expand. Supported values:
+        ``'1x1'``, ``'1x2'``, ``'1x3'``, ``'1x4'``, ``'1x6'``, ``'1x8'``,
+        ``'1x12'``, ``'2x4'``, ``'2x6'``, ``'4x3'``.
+    ecg_data : ECGDataType
+        The ECG input used to resolve the final lead names. Must be the same
+        object (or an object of the same type and with the same columns/lead
+        names) that will later be passed to :meth:`ECGPlotter.plot`.
+    leads_map : LeadsMap | None
+        Optional mapping from conventional template lead names (``I``, ``II``,
+        ``AVR``, ``V1``, …) to the corresponding column names in ``ecg_data``.
+        Pass ``None`` when the input already uses the canonical names.
+
+    Returns
+    -------
+    ConfigurationDataType
+        Explicit plotting configuration: a list where each element is either a
+        string (full-width strip lead) or a list of strings (leads concatenated
+        within the same row).
+
+    Raises
+    ------
+    ValueError
+        If ``template`` is not one of the supported template names, if a
+        required canonical lead is missing from both ``leads_map`` and
+        ``ecg_data``, or if ``leads_map`` contains invalid or duplicate
+        mappings.
+    """
     input_leads = _extract_input_leads(ecg_data)
     canonical_to_custom = _validate_and_resolve_leads_map(leads_map, input_leads)
     available_input_leads = set(input_leads)

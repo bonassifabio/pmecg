@@ -47,6 +47,20 @@ class AbstractAttentionMap(ABC):
     lead-aligned :class:`pandas.DataFrame`, validates the requested polarity,
     applies a single global scaling factor when values exceed magnitude 1, and
     segments the attention values according to the ECG layout.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention input. Accepts the same DataFrame and tuple formats as
+        :class:`ECGPlotter`: a :class:`pandas.DataFrame` whose columns are
+        lead names, or a ``(array, lead_names)`` tuple.
+    polarity : {'positive', 'signed'}
+        ``'positive'`` for non-negative attention values rendered with a single
+        color; ``'signed'`` for values spanning both negative and positive,
+        rendered with two colors.
+    show_colormap : bool, optional
+        Whether to render the right-side color scale next to the plot.
+        By default ``True``.
     """
 
     def __init__(
@@ -156,6 +170,31 @@ class IntervalAttentionMap(AbstractAttentionMap):
         show_colormap: bool = False,
         smoothing_window: int | None = None,
     ) -> None:
+        """
+        Parameters
+        ----------
+        data : AttentionDataType
+            Attention input (DataFrame or tuple formats).
+        polarity : {'positive', 'signed'}
+            ``'positive'`` for non-negative attention; ``'signed'`` for values
+            spanning both negative and positive.
+        color : AttentionColorType | None, optional
+            Single matplotlib color string for ``polarity='positive'``, or a
+            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
+            Defaults to red for positive and ``('blue', 'red')`` for signed.
+        max_attention_mV : float, optional
+            Maximum half-width of the attention band in mV (at attention
+            strength 1). By default 0.25.
+        alpha : float, optional
+            Transparency of the band (0 = fully transparent, 1 = opaque).
+            By default 0.25.
+        show_colormap : bool, optional
+            Whether to show the right-side color scale. By default ``False``.
+        smoothing_window : int | None, optional
+            If set, applies a moving-average with this window size to the
+            attention values before rendering. ``None`` disables smoothing.
+            By default ``None``.
+        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
@@ -221,6 +260,21 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
+        """
+        Parameters
+        ----------
+        data : AttentionDataType
+            Attention input (DataFrame or tuple formats).
+        polarity : {'positive', 'signed'}
+            ``'positive'`` for non-negative attention; ``'signed'`` for values
+            spanning both negative and positive.
+        color : AttentionColorType | None, optional
+            Single matplotlib color string for ``polarity='positive'``, or a
+            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
+            Defaults to red for positive and ``('blue', 'red')`` for signed.
+        show_colormap : bool, optional
+            Whether to show the right-side color scale. By default ``True``.
+        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
@@ -274,6 +328,21 @@ class LineColorAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
+        """
+        Parameters
+        ----------
+        data : AttentionDataType
+            Attention input (DataFrame or tuple formats).
+        polarity : {'positive', 'signed'}
+            ``'positive'`` for non-negative attention; ``'signed'`` for values
+            spanning both negative and positive.
+        color : AttentionColorType | None, optional
+            Single matplotlib color string for ``polarity='positive'``, or a
+            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
+            Defaults to red for positive and ``('blue', 'red')`` for signed.
+        show_colormap : bool, optional
+            Whether to show the right-side color scale. By default ``True``.
+        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 

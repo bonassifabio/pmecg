@@ -273,9 +273,9 @@ still reflects the actual prepared range.
 
 Constructor parameters:
 
-- `pmecg.BackgroundAttentionMap(...)`: `data`, `polarity`, `color`
-- `pmecg.IntervalAttentionMap(...)`: `data`, `polarity`, `color`, `max_attention_mV`, `alpha`
-- `pmecg.LineColorAttentionMap(...)`: `data`, `polarity`, `color`
+- `pmecg.BackgroundAttentionMap(...)`: `data`, `polarity`, `color`, `show_colormap`
+- `pmecg.IntervalAttentionMap(...)`: `data`, `polarity`, `color`, `max_attention_mV`, `alpha`, `show_colormap`, `smoothing_window`
+- `pmecg.LineColorAttentionMap(...)`: `data`, `polarity`, `color`, `show_colormap`
 
 The `color` parameter depends on `polarity`:
 
