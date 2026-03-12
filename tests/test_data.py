@@ -1,5 +1,7 @@
 """Unit tests for pmecg.utils.data."""
 
+from __future__ import annotations
+
 from contextlib import nullcontext
 
 import numpy as np

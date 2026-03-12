@@ -1,5 +1,7 @@
 """Structural tests that validate ECGPlotter output by inspecting the rendered Matplotlib figure."""
 
+from __future__ import annotations
+
 import matplotlib
 
 matplotlib.use("Agg")  # non-interactive backend; must precede pyplot import
@@ -746,6 +748,7 @@ def test_partial_ecginformation(ecg_df, information, present_strings, absent_str
 # ── Signal horizontal extent ───────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("speed", [25.0, 50.0])
 @pytest.mark.parametrize(
     "configuration,n_rows",
     [
@@ -755,13 +758,12 @@ def test_partial_ecginformation(ecg_df, information, present_strings, absent_str
     ],
 )
 # Checks that the plotted waveform width matches the recording duration converted by paper speed.
-def test_signal_horizontal_extent(ecg_df, configuration, n_rows):
+def test_signal_horizontal_extent(ecg_df, configuration, n_rows, speed):
     """Signal width must match the recording duration converted through the configured ECG paper speed."""
-    speed = 50.0  # ECGPlotter default
     expected_span_mm = (N_SAMPLES - 1) * speed / FS
     left_margin_in = LEFT_MARGIN_MM / MM_PER_INCH
 
-    plotter = ECGPlotter(grid_mode=None, show_calibration=False, print_information=False)
+    plotter = ECGPlotter(speed=speed, grid_mode=None, show_calibration=False, print_information=False)
     with maybe_warns_divisible(configuration, N_SAMPLES):
         fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
     try:
@@ -837,6 +839,7 @@ def test_template_all_lead_labels(ecg_df, template_key):
 # ── Lead label positions ───────────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("speed,voltage,row_distance", [(25.0, 10.0, 3.0), (50.0, 20.0, 2.0)])
 @pytest.mark.parametrize(
     "configuration",
     [
@@ -848,9 +851,8 @@ def test_template_all_lead_labels(ecg_df, template_key):
     ],
 )
 # Checks that lead labels land at the expected row and segment positions for several layout shapes.
-def test_lead_label_positions(ecg_df, configuration):
+def test_lead_label_positions(ecg_df, configuration, speed, voltage, row_distance):
     """Lead labels must land at the expected row and left-to-right segment positions for each layout."""
-    speed, voltage, row_distance = 50.0, 20.0, 2.0
     rows = _resolve_rows(configuration)
     n_rows = len(rows)
 

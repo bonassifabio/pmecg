@@ -15,16 +15,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.4
         with:
-          python-version: "3.x"
-
-      - name: Install build
-        run: python3 -m pip install build --user
+          environments: default
+          locked: true
+          cache: true
 
       - name: Build wheel and source tarball
-        run: python3 -m build
+        run: pixi run build-dist
 
       - name: Store distribution packages
         uses: actions/upload-artifact@v4

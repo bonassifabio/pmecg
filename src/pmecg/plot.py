@@ -8,6 +8,14 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from .utils.attention import (
+    AbstractAttentionMap,
+    BackgroundAttentionMap,
+    IntervalAttentionMap,
+    LineColorAttentionMap,
+    attention_map_from_indices_annotations,
+    attention_map_from_time_annotations,
+)
 from .utils.data import (
     ConfigurationDataType,
     ECGDataType,
@@ -19,15 +27,29 @@ from .utils.data import (
 from .utils.plot import (
     LEFT_MARGIN_MM,
     MM_PER_INCH,
+    RIGHT_MARGIN_MM,
     _adjust_row_distance,
     _compute_figure_size,
     _compute_row_offsets,
     _nice_tick_step,
+    _plot_attention_color_scale,
     _plot_grid,
     _plot_row,
     _print_information,
     _RenderContext,
 )
+
+__all__ = [
+    "AbstractAttentionMap",
+    "BackgroundAttentionMap",
+    "ECGInformation",
+    "ECGPlotter",
+    "ECGStats",
+    "IntervalAttentionMap",
+    "LineColorAttentionMap",
+    "attention_map_from_indices_annotations",
+    "attention_map_from_time_annotations",
+]
 
 
 @dataclass
@@ -112,9 +134,9 @@ class ECGPlotter:
     def __init__(
         self,
         grid_mode: Literal["cm"] | None = "cm",
-        speed: float = 50.0,
-        voltage: float = 20.0,
-        row_distance: float = 2.0,
+        speed: float = 25.0,
+        voltage: float = 10.0,
+        row_distance: float = 3.0,
         line_width: float = 0.5,
         grid_color: str = "#f4aaaa",
         print_information: bool = False,
@@ -132,11 +154,11 @@ class ECGPlotter:
             with every 5th line slightly thicker. Pass None to disable the grid.
             By default 'cm'.
         speed : float, optional
-            The speed of the plot in mm/s, by default 50.0
+            The speed of the plot in mm/s, by default 25.0
         voltage : float, optional
-            The space (in mm) corresponding to 1 mV, by default 20.0
+            The space (in mm) corresponding to 1 mV, by default 10.0
         row_distance : float, optional
-            Distance between the zero-lines of consecutive rows, expressed in mV, by default 2.0
+            Distance between the zero-lines of consecutive rows, expressed in mV, by default 3.0
         line_width : float, optional
             Thickness of the ECG signal lines (and calibration pulse) in points, by default 0.5
         grid_color : str, optional
@@ -183,6 +205,7 @@ class ECGPlotter:
         show: bool = True,
         information: ECGInformation | None = None,
         stats: ECGStats | None = None,
+        attention_map: AbstractAttentionMap | None = None,
     ) -> Figure:
         """Plot the ECG in `ecg_data` using the plotting configuration specified in `configuration`.
 
@@ -214,6 +237,16 @@ class ECGPlotter:
             Computed ECG statistics. When ``self.print_information`` is True, any
             non-None field is printed in the top-right corner, arranged in columns
             of up to three rows.
+        attention_map : AbstractAttentionMap | None, optional
+            Optional attention overlay. Pass an instance of
+            ``BackgroundAttentionMap``, ``IntervalAttentionMap``, or
+            ``LineColorAttentionMap`` so the attention data, validation, and
+            style-specific rendering parameters live together in one object.
+            Attention maps now require an explicit polarity mode:
+            positive-only attention uses a single color, while signed attention
+            spanning negative and positive values uses a two-color tuple.
+            When an attention map requests a color scale, ``plot()`` expands
+            the right margin automatically to preserve the ECG plotting area.
 
         Returns
         -------
@@ -233,6 +266,11 @@ class ECGPlotter:
         _validate_input_lead_names(list(df_data.columns))
 
         resolved_configuration = _resolve_configuration(configuration, list(df_data.columns))
+        prepared_attention = attention_map
+        if prepared_attention is not None:
+            prepared_attention.prepare(list(df_data.columns), df_data.shape[0], resolved_configuration)
+        reserves_attention_margin = prepared_attention is not None and prepared_attention.shows_color_scale
+        shows_attention_color_scale = reserves_attention_margin and prepared_attention.show_colormap
 
         # Apply the layout configuration → one (signal, leads) pair per row
         rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
@@ -267,6 +305,7 @@ class ECGPlotter:
             self.voltage,
             adjusted_row_distance,
             print_information=self.print_information,
+            right_margin_mm=RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
@@ -287,7 +326,22 @@ class ECGPlotter:
             _plot_grid(ax, self.grid_mode, width_inches, height_inches, ctx)
 
         for i, row in enumerate(rows):
-            _plot_row(ax, row, ctx, y_offsets[i])
+            row_attention = None if prepared_attention is None else prepared_attention.row_attentions[i]
+            _plot_row(ax, row, ctx, y_offsets[i], attention_values=row_attention, attention_map=prepared_attention)
+
+        first_row_top_inches = y_offsets[0] + ctx.row_distance_inches / 2.0
+        last_row_zero_inches = y_offsets[-1]
+        last_row_bottom_inches = last_row_zero_inches - ctx.row_distance_inches / 2.0
+
+        if shows_attention_color_scale and prepared_attention is not None:
+            _plot_attention_color_scale(
+                ax,
+                prepared_attention,
+                width_inches,
+                RIGHT_MARGIN_MM * 2.0,
+                first_row_top_inches,
+                last_row_bottom_inches,
+            )
 
         # --- Time axis ---
         left_margin_inches = LEFT_MARGIN_MM / MM_PER_INCH
@@ -316,8 +370,6 @@ class ECGPlotter:
 
         if self.print_information:
             original_leads = list(df_data.columns)
-            first_row_top_inches = y_offsets[0] + ctx.row_distance_inches / 2.0
-            last_row_zero_inches = y_offsets[-1]
             _print_information(
                 ax,
                 ctx,

@@ -17,7 +17,11 @@
 
 | 1×3 layout | 4×3 layout |
 |:---:|:---:|
-| ![1x3 ECG](example/outputs/1/1x3.png) | ![4x3 ECG](example/outputs/1/4x3.png) |
+| ![1x3 ECG](example/artifacts/no-attention/1/1x3.png) | ![4x3 ECG](example/artifacts/no-attention/1/4x3.png) |
+
+| Interval attention | Line-color attention | Background attention |
+|:---:|:---:|:---:|
+| ![Interval attention ECG](example/artifacts/attention/4x3-interval-signed.png) | ![Line-color attention ECG](example/artifacts/attention/4x3-line-color-signed.png) | ![Background attention ECG](example/artifacts/attention/4x3-background-signed.png) |
 
 ## Features
 
@@ -134,7 +138,7 @@ import pmecg
 fs = 500
 t = np.linspace(0, 10, int(fs * 10))
 
-custom_df = pd.DataFrame(
+ecg_df = pd.DataFrame(
     {
         "Lead 1": np.random.randn(len(t)) * 0.1,
         "Lead 2": np.random.randn(len(t)) * 0.1,
@@ -166,8 +170,8 @@ leads_map = pmecg.LeadsMap(
     V6="Chest-6",
 )
 
-configuration = pmecg.template_factory("4x3", custom_df, leads_map=leads_map)
-fig = pmecg.ECGPlotter().plot(custom_df, configuration=configuration, sampling_frequency=fs)
+configuration = pmecg.template_factory("4x3", ecg_df, leads_map=leads_map)
+fig = pmecg.ECGPlotter().plot(ecg_df, configuration=configuration, sampling_frequency=fs)
 ```
 
 If you provide your own custom configuration, `leads_map` is not needed. In that case,
@@ -175,7 +179,7 @@ If you provide your own custom configuration, `leads_map` is not needed. In that
 
 ```python
 fig = pmecg.ECGPlotter().plot(
-    custom_df,
+    ecg_df,
     configuration=[["Lead 1", "Chest-1"], "Chest-6"],
     sampling_frequency=fs,
 )
@@ -196,14 +200,108 @@ plotter = pmecg.ECGPlotter(
 )
 ```
 
+### Attention Maps
+
+Attention overlays are class-based. Instantiate one of
+`pmecg.BackgroundAttentionMap`, `pmecg.IntervalAttentionMap`, or
+`pmecg.LineColorAttentionMap`, then pass it to `ECGPlotter.plot()`.
+
+Each attention class:
+
+- accepts the attention data directly (`pd.DataFrame` or the same tuple formats accepted for ECG input),
+- validates and aligns it against the plotted ECG leads,
+- requires an explicit `polarity`:
+  - `"positive"` for non-negative attention values, rendered with a single color,
+  - `"signed"` for attention values spanning both negative and positive values, rendered with two colors,
+- automatically rescales the prepared attention data with one global factor across all columns:
+  - positive attention is divided by its global maximum only when that maximum exceeds `1`,
+  - signed attention is divided by the global maximum absolute value only when that magnitude exceeds `1`,
+- segments the attention values row-by-row so multi-column ECG layouts work automatically.
+
+You can also generate attention inputs from sparse annotations before
+instantiating an attention-map class:
+
+- `pmecg.attention_map_from_indices_annotations(...)` fills a DataFrame from
+  per-lead sample-index ranges.
+- `pmecg.attention_map_from_time_annotations(...)` does the same from time
+  ranges in seconds and internally converts them to sample-index ranges using
+  the sampling frequency.
+
+Non-interval attention maps that expose a gradient add a right-side color
+scale automatically. Attention-aware layouts keep an expanded right margin so
+the ECG trace keeps the same plotting area.
+
+```python
+signed_attention = pmecg.LineColorAttentionMap(
+    data=pd.DataFrame({"I": np.linspace(-2.0, 1.5, len(df))}),
+    polarity="signed",
+    color=("blue", "red"),
+)
+
+positive_attention = pmecg.IntervalAttentionMap(
+    data=pd.DataFrame({"I": np.linspace(0.0, 3.0, len(df))}),
+    polarity="positive",
+    color="darkorange",
+    max_attention_mV=0.4,
+    alpha=0.35,
+)
+```
+
+```python
+annotated_attention = pmecg.attention_map_from_time_annotations(
+    ecg_df,
+    fs=fs,
+    I=[
+        {"time_range": [0.25, 0.45], "attention_value": 1.0},
+        {"time_range": [0.80, 1.10], "attention_value": 0.5},
+    ],
+    V2=[{"time_range": [0.30, 0.60], "attention_value": 0.8}],
+)
+
+indexed_attention = pmecg.attention_map_from_indices_annotations(
+    ecg_df,
+    I=[{"index_range": [125, 225], "attention_value": 1.0}],
+    V2=[{"index_range": [150, 300], "attention_value": 0.8}],
+)
+```
+
+If the attention input contains a single vector, it is broadcast to all ECG
+leads before layout segmentation. Positive attention always uses the range
+`[0, max(attention)]` after any automatic scaling. Signed attention keeps its
+negative and positive extrema after any automatic scaling, so the color scale
+still reflects the actual prepared range.
+
+Constructor parameters:
+
+- `pmecg.BackgroundAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `show_colormap`
+- `pmecg.IntervalAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `max_attention_mV`, `alpha`, `show_colormap`, `smoothing_window`
+- `pmecg.LineColorAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `show_colormap`
+
+The `color` parameter depends on `polarity`:
+
+- `polarity="positive"` → pass a single matplotlib color string, such as `"red"` or `"#ff6600"`.
+- `polarity="signed"` → pass a `(negative_color, positive_color)` tuple, such as `("blue", "red")`.
+
+`LineColorAttentionMap` draws the regular black ECG trace first, then overlays a
+gradient-colored line collection on top of it.
+
 ## Development
 
 ```bash
 git clone https://github.com/bonassifabio/pmecg.git
 cd pmecg
-uv sync --all-groups
-uv run pytest
+pixi install
+pixi run lint
+pixi run test-fast
 ```
+
+Use `pixi run test` for the full suite in the default environment.
+Use `pixi run test-all` to run the full suite across all configured Python
+versions, and `pixi run test-all-fast` to do the same for the
+non-integration suite.
+
+For ad hoc commands, run the tool through Pixi directly, for example
+`pixi run pytest tests/test_data.py::TestSegmentLeads -v`.
 
 ## License
 
