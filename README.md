@@ -138,7 +138,7 @@ import pmecg
 fs = 500
 t = np.linspace(0, 10, int(fs * 10))
 
-custom_df = pd.DataFrame(
+ecg_df = pd.DataFrame(
     {
         "Lead 1": np.random.randn(len(t)) * 0.1,
         "Lead 2": np.random.randn(len(t)) * 0.1,
@@ -170,8 +170,8 @@ leads_map = pmecg.LeadsMap(
     V6="Chest-6",
 )
 
-configuration = pmecg.template_factory("4x3", custom_df, leads_map=leads_map)
-fig = pmecg.ECGPlotter().plot(custom_df, configuration=configuration, sampling_frequency=fs)
+configuration = pmecg.template_factory("4x3", ecg_df, leads_map=leads_map)
+fig = pmecg.ECGPlotter().plot(ecg_df, configuration=configuration, sampling_frequency=fs)
 ```
 
 If you provide your own custom configuration, `leads_map` is not needed. In that case,
@@ -179,7 +179,7 @@ If you provide your own custom configuration, `leads_map` is not needed. In that
 
 ```python
 fig = pmecg.ECGPlotter().plot(
-    custom_df,
+    ecg_df,
     configuration=[["Lead 1", "Chest-1"], "Chest-6"],
     sampling_frequency=fs,
 )
@@ -249,7 +249,7 @@ positive_attention = pmecg.IntervalAttentionMap(
 
 ```python
 annotated_attention = pmecg.attention_map_from_time_annotations(
-    df,
+    ecg_df,
     fs=fs,
     I=[
         {"time_range": [0.25, 0.45], "attention_value": 1.0},
@@ -259,7 +259,7 @@ annotated_attention = pmecg.attention_map_from_time_annotations(
 )
 
 indexed_attention = pmecg.attention_map_from_indices_annotations(
-    df,
+    ecg_df,
     I=[{"index_range": [125, 225], "attention_value": 1.0}],
     V2=[{"index_range": [150, 300], "attention_value": 0.8}],
 )
@@ -273,9 +273,9 @@ still reflects the actual prepared range.
 
 Constructor parameters:
 
-- `pmecg.BackgroundAttentionMap(...)`: `data`, `polarity`, `color`, `show_colormap`
-- `pmecg.IntervalAttentionMap(...)`: `data`, `polarity`, `color`, `max_attention_mV`, `alpha`, `show_colormap`, `smoothing_window`
-- `pmecg.LineColorAttentionMap(...)`: `data`, `polarity`, `color`, `show_colormap`
+- `pmecg.BackgroundAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `show_colormap`
+- `pmecg.IntervalAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `max_attention_mV`, `alpha`, `show_colormap`, `smoothing_window`
+- `pmecg.LineColorAttentionMap(...)`: `ecg_data`, `polarity`, `color`, `show_colormap`
 
 The `color` parameter depends on `polarity`:
 
