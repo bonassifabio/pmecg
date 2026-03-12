@@ -28,7 +28,7 @@ jobs:
         uses: prefix-dev/setup-pixi@v0.9.4
         with:
           environments: default py38 py39 py310 py311 py312 py313 py314
-          locked: true
+          locked: false
           cache: true
           cache-write: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
@@ -44,7 +44,7 @@ jobs:
         uses: prefix-dev/setup-pixi@v0.9.4
         with:
           environments: default
-          locked: true
+          locked: false
           cache: true
           cache-write: false
 
@@ -81,7 +81,7 @@ jobs:
         uses: prefix-dev/setup-pixi@v0.9.4
         with:
           environments: ${{ matrix.environment }}
-          locked: true
+          locked: false
           cache: true
           cache-write: false
 
