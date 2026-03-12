@@ -17,11 +17,11 @@
 
 | 1×3 layout | 4×3 layout |
 |:---:|:---:|
-| ![1x3 ECG](example/outputs/no-attention/1/1x3.png) | ![4x3 ECG](example/outputs/no-attention/1/4x3.png) |
+| ![1x3 ECG](example/artifacts/no-attention/1/1x3.png) | ![4x3 ECG](example/artifacts/no-attention/1/4x3.png) |
 
 | Interval attention | Line-color attention | Background attention |
 |:---:|:---:|:---:|
-| ![Interval attention ECG](example/outputs/attention/4x3-interval-signed.png) | ![Line-color attention ECG](example/outputs/attention/4x3-line-color-signed.png) | ![Background attention ECG](example/outputs/attention/4x3-background-signed.png) |
+| ![Interval attention ECG](example/artifacts/attention/4x3-interval-signed.png) | ![Line-color attention ECG](example/artifacts/attention/4x3-line-color-signed.png) | ![Background attention ECG](example/artifacts/attention/4x3-background-signed.png) |
 
 ## Features
 
