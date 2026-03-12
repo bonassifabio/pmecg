@@ -118,7 +118,12 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
     ("attention_kind", "attention_map_factory"),
     [
         ("background", lambda df: BackgroundAttentionMap(data=df, polarity="positive", color="red")),
-        ("interval", lambda df: IntervalAttentionMap(data=df, polarity="positive", color="red", max_attention_mV=0.5, alpha=0.4)),
+        (
+            "interval",
+            lambda df: IntervalAttentionMap(
+                data=df, polarity="positive", color="red", max_attention_mV=0.5, alpha=0.4, smoothing_window=2
+            ),
+        ),
         ("line-color", lambda df: LineColorAttentionMap(data=df, polarity="positive", color="red")),
     ],
 )

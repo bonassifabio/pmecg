@@ -1121,3 +1121,36 @@ def test_interval_attention_can_opt_in_to_color_scale():
         assert "1" in color_scale_labels
     finally:
         plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# _smooth_attention
+# ---------------------------------------------------------------------------
+
+
+def test_smooth_attention_no_window_returns_original():
+    values = np.array([1.0, 3.0, 2.0, 5.0, 1.0])
+    result = attention_utils._smooth_attention(values, None)
+    np.testing.assert_array_equal(result, values)
+
+
+def test_smooth_attention_window_1_returns_original():
+    values = np.array([1.0, 3.0, 2.0, 5.0, 1.0])
+    result = attention_utils._smooth_attention(values, 1)
+    np.testing.assert_array_equal(result, values)
+
+
+def test_smooth_attention_window_2_averages_neighbours():
+    values = np.array([0.0, 2.0, 0.0, 2.0, 0.0])
+    result = attention_utils._smooth_attention(values, 2)
+    assert result.shape == values.shape
+    # interior points should be averages of adjacent pairs
+    assert result[1] == pytest.approx((0.0 + 2.0) / 2)
+    assert result[2] == pytest.approx((2.0 + 0.0) / 2)
+    assert result[3] == pytest.approx((0.0 + 2.0) / 2)
+
+
+def test_smooth_attention_window_seq_len_returns_array_same_shape():
+    values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    result = attention_utils._smooth_attention(values, len(values))
+    assert result.shape == values.shape

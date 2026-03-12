@@ -135,6 +135,13 @@ class AbstractAttentionMap(ABC):
         """Return Matplotlib artists for one ECG row using a common rendering signature."""
 
 
+def _smooth_attention(values: np.ndarray, window: int | None) -> np.ndarray:
+    if window is None or window <= 1 or len(values) < window:
+        return values
+    kernel = np.ones(window) / window
+    return np.convolve(values, kernel, mode="same")
+
+
 class IntervalAttentionMap(AbstractAttentionMap):
     """Render attention as a colored band around the ECG trace."""
 
@@ -147,16 +154,20 @@ class IntervalAttentionMap(AbstractAttentionMap):
         max_attention_mV: float = 0.25,
         alpha: float = 0.25,
         show_colormap: bool = False,
+        smoothing_window: int | None = None,
     ) -> None:
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
         if not isinstance(alpha, (int, float)) or not 0 <= float(alpha) <= 1:
             raise ValueError("alpha must be between 0 and 1")
+        if smoothing_window is not None and (not isinstance(smoothing_window, int) or smoothing_window < 1):
+            raise ValueError("smoothing_window must be a positive integer or None")
 
         self.max_attention_mV = float(max_attention_mV)
         self.color = _validate_attention_color(color, self.polarity)
         self.alpha = float(alpha)
+        self.smoothing_window: int | None = smoothing_window
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
         return _interval_color_for_value(value, self.range, self.polarity, self.color, self.alpha)
@@ -177,6 +188,7 @@ class IntervalAttentionMap(AbstractAttentionMap):
         if len(x) < 2:
             return []
 
+        attention_values = _smooth_attention(attention_values, self.smoothing_window)
         strengths = _attention_strength(attention_values, self.range, self.polarity)
         half_band = strengths * self.max_attention_mV * mv_to_inches
 
