@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from collections import Counter
 from collections.abc import Sequence
-from typing import NamedTuple
+from typing import List, NamedTuple, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -32,8 +32,8 @@ class LeadsMap(NamedTuple):
     V6: str | None = None
 
 
-ECGDataType = tuple[list[np.ndarray] | np.ndarray, list[str]] | pd.DataFrame
-ConfigurationDataType = list[list[str] | str]
+ECGDataType = Union[Tuple[Union[List[np.ndarray], np.ndarray], List[str]], pd.DataFrame]
+ConfigurationDataType = List[Union[List[str], str]]
 _TEMPLATE_CONFIGURATIONS: dict[str, ConfigurationDataType] = {
     "1x1": ["I"],
     "1x2": ["I", "II"],

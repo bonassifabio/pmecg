@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from numbers import Integral, Real
-from typing import Literal, TypedDict
+from typing import List, Literal, Tuple, TypedDict, Union
 
 import matplotlib.axes
 import numpy as np
@@ -20,10 +20,10 @@ from .data import (
     _validate_input_lead_names,
 )
 
-AttentionArrayType = np.ndarray | list[np.ndarray]
-AttentionDataType = tuple[AttentionArrayType, list[str]] | pd.DataFrame
+AttentionArrayType = Union[np.ndarray, List[np.ndarray]]
+AttentionDataType = Union[Tuple[AttentionArrayType, List[str]], pd.DataFrame]
 AttentionPolarity = Literal["positive", "signed"]
-AttentionColorType = str | tuple[str, str]
+AttentionColorType = Union[str, Tuple[str, str]]
 BACKGROUND_MAX_ALPHA = 0.75
 DEFAULT_POSITIVE_COLOR = "red"
 DEFAULT_SIGNED_COLORS = ("blue", "red")
@@ -486,8 +486,7 @@ def _extract_time_range(annotation: dict[str, object], *, lead_name: str) -> obj
     missing_keys = expected_keys.difference(annotation)
     if missing_keys:
         raise ValueError(
-            f"Each time annotation for lead {lead_name!r} must contain "
-            + ", ".join(sorted(repr(key) for key in missing_keys))
+            f"Each time annotation for lead {lead_name!r} must contain " + ", ".join(sorted(repr(key) for key in missing_keys))
         )
 
     unexpected_keys = set(annotation).difference(expected_keys)
@@ -505,15 +504,11 @@ def _index_range_to_sample_bounds(annotation: _IndexAnnotation, *, n_samples: in
     expected_keys = {"index_range", "attention_value"}
     missing_keys = expected_keys.difference(annotation)
     if missing_keys:
-        raise ValueError(
-            "Each index annotation must contain " + ", ".join(sorted(repr(key) for key in missing_keys))
-        )
+        raise ValueError("Each index annotation must contain " + ", ".join(sorted(repr(key) for key in missing_keys)))
 
     unexpected_keys = set(annotation).difference(expected_keys)
     if unexpected_keys:
-        raise ValueError(
-            "Unsupported index annotation keys: " + ", ".join(sorted(repr(key) for key in unexpected_keys))
-        )
+        raise ValueError("Unsupported index annotation keys: " + ", ".join(sorted(repr(key) for key in unexpected_keys)))
 
     index_range = annotation["index_range"]
     if not isinstance(index_range, (list, tuple)) or len(index_range) != 2:

@@ -1,5 +1,7 @@
 """Integration test that fetches PTB-XL records and saves deterministic PNG and PDF plot outputs."""
 
+from __future__ import annotations
+
 import matplotlib
 
 matplotlib.use("Agg")

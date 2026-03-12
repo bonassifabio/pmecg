@@ -47,9 +47,7 @@ def test_attention_conversion_from_numpy_tuple():
 
 
 def test_attention_conversion_from_list_tuple():
-    converted = attention_utils._attention_to_dataframe(
-        ([np.array([0.0, 1.0, 2.0]), np.array([2.0, 1.0, 0.0])], ["I", "II"])
-    )
+    converted = attention_utils._attention_to_dataframe(([np.array([0.0, 1.0, 2.0]), np.array([2.0, 1.0, 0.0])], ["I", "II"]))
 
     expected = pd.DataFrame({"I": [0.0, 1.0, 2.0], "II": [2.0, 1.0, 0.0]})
     pd.testing.assert_frame_equal(converted, expected)
@@ -939,9 +937,7 @@ def test_background_attention_rendered_alpha_matches_expected_values():
         ),
     ],
 )
-def test_non_interval_attention_adds_color_scale_and_expands_right_margin(
-    attention_map_factory, attention_df, expected_labels
-):
+def test_non_interval_attention_adds_color_scale_and_expands_right_margin(attention_map_factory, attention_df, expected_labels):
     ecg_df = pd.DataFrame({"I": np.zeros(5)})
     plotter = ECGPlotter(
         grid_mode=None,

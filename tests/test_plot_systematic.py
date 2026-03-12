@@ -1,5 +1,7 @@
 """Structural tests that validate ECGPlotter output by inspecting the rendered Matplotlib figure."""
 
+from __future__ import annotations
+
 import matplotlib
 
 matplotlib.use("Agg")  # non-interactive backend; must precede pyplot import
