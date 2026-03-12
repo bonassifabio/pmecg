@@ -270,7 +270,7 @@ class ECGPlotter:
         if prepared_attention is not None:
             prepared_attention.prepare(list(df_data.columns), df_data.shape[0], resolved_configuration)
         reserves_attention_margin = prepared_attention is not None and prepared_attention.shows_color_scale
-        shows_attention_color_scale = reserves_attention_margin and not isinstance(prepared_attention, IntervalAttentionMap)
+        shows_attention_color_scale = reserves_attention_margin and prepared_attention.show_colormap
 
         # Apply the layout configuration → one (signal, leads) pair per row
         rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)

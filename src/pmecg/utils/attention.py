@@ -49,9 +49,18 @@ class AbstractAttentionMap(ABC):
     segments the attention values according to the ECG layout.
     """
 
-    def __init__(self, data: AttentionDataType, *, polarity: AttentionPolarity) -> None:
+    def __init__(
+        self,
+        data: AttentionDataType,
+        *,
+        polarity: AttentionPolarity,
+        show_colormap: bool = True,
+    ) -> None:
         self.data = data
         self.polarity = _validate_attention_polarity(polarity)
+        if not isinstance(show_colormap, bool):
+            raise ValueError("show_colormap must be a boolean")
+        self.show_colormap = show_colormap
         self._dataframe: pd.DataFrame | None = None
         self._row_attentions: tuple[np.ndarray, ...] = ()
         self._resolved_range: tuple[float, float] | None = None
@@ -137,8 +146,9 @@ class IntervalAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         max_attention_mV: float = 0.25,
         alpha: float = 0.25,
+        show_colormap: bool = False,
     ) -> None:
-        super().__init__(data, polarity=polarity)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
         if not isinstance(alpha, (int, float)) or not 0 <= float(alpha) <= 1:
@@ -197,8 +207,9 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         *,
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
+        show_colormap: bool = True,
     ) -> None:
-        super().__init__(data, polarity=polarity)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
@@ -249,8 +260,9 @@ class LineColorAttentionMap(AbstractAttentionMap):
         *,
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
+        show_colormap: bool = True,
     ) -> None:
-        super().__init__(data, polarity=polarity)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
