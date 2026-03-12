@@ -15,7 +15,13 @@ from output_helpers import save_if_changed
 from ptbxl_helper import get_ptbxl_data
 
 import pmecg
-from pmecg import BackgroundAttentionMap, IntervalAttentionMap, LineColorAttentionMap, template_factory
+from pmecg import (
+    BackgroundAttentionMap,
+    IntervalAttentionMap,
+    LineColorAttentionMap,
+    attention_map_from_time_annotations,
+    template_factory,
+)
 from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
@@ -99,6 +105,56 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
     try:
         for ext in ("png", "pdf"):
             path = OUTPUT_ROOT / f"{CONFIGURATION_NAME}-{attention_kind}-{attention_variant}.{ext}"
+            save_if_changed(fig, path, ext)
+            assert path.exists(), f"Expected output file not found: {path}"
+            assert path.stat().st_size > 0, f"Output file is empty: {path}"
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("attention_kind", "attention_map_factory"),
+    [
+        ("background", lambda df: BackgroundAttentionMap(data=df, polarity="positive", color="red")),
+        ("interval", lambda df: IntervalAttentionMap(data=df, polarity="positive", color="red", max_attention_mV=0.5, alpha=0.4)),
+        ("line-color", lambda df: LineColorAttentionMap(data=df, polarity="positive", color="red")),
+    ],
+)
+def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory) -> None:
+    """Plot a PTB-XL record with a manual annotation on the strip lead (II) from 1.5s to 4.0s."""
+    record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
+    ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+
+    attention_df = attention_map_from_time_annotations(
+        ecg_df,
+        fs=record.fs,
+        II=[{"time_range": [1.5, 4.0], "attention_value": 1.0}],
+    )
+
+    plotter = ECGPlotter(grid_mode="cm", print_information=True)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    information = ECGInformation(
+        age=metadata["age"],
+        sex=metadata["sex"],
+        date=metadata["date"],
+        machine_model=f"PTB-XL manual annotation example ({attention_kind})",
+    )
+
+    fig = plotter.plot(
+        ecg_df,
+        plot_configuration,
+        sampling_frequency=record.fs,
+        show=False,
+        information=information,
+        stats=stats,
+        attention_map=attention_map_factory(attention_df),
+    )
+
+    try:
+        for ext in ("png", "pdf"):
+            path = OUTPUT_ROOT / f"manual-{attention_kind}.{ext}"
             save_if_changed(fig, path, ext)
             assert path.exists(), f"Expected output file not found: {path}"
             assert path.stat().st_size > 0, f"Output file is empty: {path}"
