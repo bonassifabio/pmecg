@@ -303,6 +303,10 @@ non-integration suite.
 For ad hoc commands, run the tool through Pixi directly, for example
 `pixi run pytest tests/test_data.py::TestSegmentLeads -v`.
 
+## Acknowledgements
+
+Special thanks to Antônio H. Ribeiro (Uppsala University), Stefan Gustaffson (Uppsala University Hospital), and Johan Sundström (Uppsala University Hospital) for their insights, feedbacks, and contributions!
+
 ## License
 
 Copyright (C) 2026 Fabio Bonassi
