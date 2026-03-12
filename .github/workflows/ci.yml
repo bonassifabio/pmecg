@@ -6,40 +6,63 @@ on:
     paths:
       - '**.py'
       - 'pyproject.toml'
+      - 'pixi.lock'
+      - '.github/workflows/ci.yml'
   push:
     branches: [ main ]
     paths:
       - '**.py'
       - 'pyproject.toml'
+      - 'pixi.lock'
+      - '.github/workflows/ci.yml'
 
 jobs:
-  test-and-lint:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.4
+        with:
+          environments: default
+          locked: true
+          cache: true
+
+      - name: Lint and format check
+        run: pixi run lint
+
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+        include:
+          - python-version: '3.9'
+            environment: py39
+          - python-version: '3.10'
+            environment: py310
+          - python-version: '3.11'
+            environment: py311
+          - python-version: '3.12'
+            environment: py312
+          - python-version: '3.13'
+            environment: py313
+          - python-version: '3.14'
+            environment: py314
       fail-fast: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.4
         with:
-          enable-cache: true
-          cache-dependency-glob: "**/uv.lock"
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install the project
-        run: uv sync --all-extras --dev
-
-      - name: Lint and format check
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
+          environments: ${{ matrix.environment }}
+          locked: true
+          cache: true
 
       - name: Cache PTB-XL data
         uses: actions/cache@v4
@@ -47,5 +70,5 @@ jobs:
           path: tests/.ptbxl-cache
           key: ptbxl-${{ hashFiles('tests/ptbxl_helper.py') }}
 
-      - name: Run tests
-        run: uv run pytest
+      - name: Run tests on Python ${{ matrix.python-version }}
+        run: pixi run -e ${{ matrix.environment }} test

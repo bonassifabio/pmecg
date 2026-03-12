@@ -290,9 +290,18 @@ gradient-colored line collection on top of it.
 ```bash
 git clone https://github.com/bonassifabio/pmecg.git
 cd pmecg
-uv sync --all-groups
-uv run pytest
+pixi install
+pixi run lint
+pixi run test-fast
 ```
+
+Use `pixi run test` for the full suite in the default environment.
+Use `pixi run test-all` to run the full suite across all configured Python
+versions, and `pixi run test-all-fast` to do the same for the
+non-integration suite.
+
+For ad hoc commands, run the tool through Pixi directly, for example
+`pixi run pytest tests/test_data.py::TestSegmentLeads -v`.
 
 ## License
 

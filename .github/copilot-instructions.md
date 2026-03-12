@@ -5,16 +5,16 @@
 ## Commands
 
 ```bash
-uv sync --all-groups          # Install all dependencies (including dev)
-uv run pytest                  # Run all tests
-uv run pytest -m "not integration"  # Unit + structural tests only (no network)
-uv run pytest tests/test_data.py::TestSegmentLeads -v  # Run a specific test class
-uv run pytest tests/test_data.py::TestNumpyToDataframe::test_shape -v  # Run a single test
-uv run ruff check .            # Lint
-uv run ruff check --fix .      # Lint with auto-fix
+pixi install                                # Install the default development environment
+pixi run test                               # Run all tests in the default environment
+pixi run test-fast                          # Unit + structural tests only (no network)
+pixi run pytest tests/test_data.py::TestSegmentLeads -v  # Run a specific test class
+pixi run pytest tests/test_data.py::TestNumpyToDataframe::test_shape -v  # Run a single test
+pixi run lint                               # Lint + formatting check
+pixi run ruff check . --fix                 # Lint with auto-fix
 ```
 
-Always use `uv run` to invoke Python tools — never `python` or `pytest` directly.
+Always use `pixi run` (or named Pixi tasks) to invoke Python tools — never `python` or `pytest` directly.
 
 Integration tests (`@pytest.mark.integration`) require network access to download the PTB-XL dataset and are slow; skip them with `-m "not integration"` for routine development.
 
@@ -58,6 +58,6 @@ ConfigurationDataType = list[list[str] | str]
 
 **Typing:** Full type annotations are required throughout (`py.typed` marker is present). Docstrings follow NumPy/SciPy style.
 
-**Linting:** Ruff with rules `E, W, F, I, UP, B` and line length 128, targeting Python 3.9+.
+**Linting:** Ruff with rules `E, W, F, I, UP, B` and line length 128, targeting Python 3.9+. The `pixi run lint` task runs `ruff check . && ruff format --check .`.
 
 **Tests:** `test_plot_systematic.py` uses `matplotlib.use("Agg")` for headless rendering. Tests are heavily parametrized across all built-in templates. New layout or data-handling changes should be validated against the systematic tests.
