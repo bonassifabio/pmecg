@@ -9,7 +9,6 @@ try:
 except PackageNotFoundError:
     __version__ = "unknown"
 from .plot import (
-    AbstractAttentionMap,
     BackgroundAttentionMap,
     ECGInformation,
     ECGPlotter,
@@ -22,7 +21,6 @@ from .plot import (
 from .utils.data import SUPPORTED_LEADS, LeadsMap, template_factory
 
 __all__ = [
-    "AbstractAttentionMap",
     "BackgroundAttentionMap",
     "ECGPlotter",
     "ECGStats",
