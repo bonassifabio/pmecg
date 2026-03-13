@@ -224,7 +224,8 @@ class ECGPlotter:
                   each row, while strings indicate that the lead should be plotted
                   for its entire duration.
                 - None, to plot all leads in the input ECG data for their entire duration.
-                By default None.
+
+            By default None.
         sampling_frequency : float, optional
             The sampling frequency of the ECG data in Hz, by default 500.0
         show : bool, optional

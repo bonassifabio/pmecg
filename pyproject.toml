@@ -64,6 +64,7 @@ test = "pytest"
 test-fast = "pytest -m 'not integration'"
 lint = "ruff check . && ruff format --check ."
 build-dist = "python -m build"
+build-docs = { cmd = "jupyter-book build docs/", default-environment = "docs" }
 
 # Use the structured object syntax for cross-environment dependencies
 test-all = { depends-on = [
@@ -108,10 +109,20 @@ python = "3.13.*"
 [tool.pixi.feature.py314.dependencies]
 python = "3.14.*"
 
+[tool.pixi.feature.docs.dependencies]
+python = "3.12.*"
+jupyter-book = ">=1.0,<2.0"
+sphinx-autodoc-typehints = ">=2.0"
+sphinx-copybutton = ">=0.5"
+
+[tool.pixi.feature.docs.pypi-dependencies]
+pmecg = { path = ".", editable = true }
+
 # 2. Define environments. 
 # Pixi automatically maps the [dependency-groups] "dev" to a feature named "dev".
 [tool.pixi.environments]
 default = ["py312", "dev"]
+docs = ["docs"]
 py38 = ["py38", "dev"]
 py39 = ["py39", "dev"]
 py310 = ["py310", "dev"]
