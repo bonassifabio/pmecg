@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
+from .types import ConfigurationDataType, ECGDataType
 from .utils.attention import (
     AbstractAttentionMap,
     BackgroundAttentionMap,
@@ -17,8 +18,6 @@ from .utils.attention import (
     attention_map_from_time_annotations,
 )
 from .utils.data import (
-    ConfigurationDataType,
-    ECGDataType,
     _apply_configuration,
     _numpy_to_dataframe,
     _resolve_configuration,
@@ -131,6 +130,46 @@ class ECGInformation:
 
 
 class ECGPlotter:
+    """Generate paper-like ECG plots from signal data.
+
+    Instantiate with visual parameters (speed, voltage scale, grid style, etc.),
+    then call :meth:`plot` to render one or more ECGs using the same configuration.
+
+    Parameters
+    ----------
+    grid_mode : {'cm', None}, optional
+        Grid style to overlay on the plot. ``'cm'`` draws lines every 0.1 cm (= 1 mm),
+        with every 5th line slightly thicker. Pass ``None`` to disable the grid.
+        By default ``'cm'``.
+    speed : float, optional
+        The speed of the plot in mm/s, by default 25.0
+    voltage : float, optional
+        The space (in mm) corresponding to 1 mV, by default 10.0
+    row_distance : float, optional
+        Distance between the zero-lines of consecutive rows, expressed in mV, by default 3.0
+    line_width : float, optional
+        Thickness of the ECG signal lines (and calibration pulse) in points, by default 0.5
+    grid_color : str, optional
+        Color of the grid lines. Any matplotlib color string is accepted (e.g. '#f4aaaa',
+        'lightgray', 'gray'). By default '#f4aaaa' (light ECG-paper red).
+    print_information : bool, optional
+        Whether to print diagnostic parameters (speed, voltage, sampling frequency,
+        leads) and any extra metadata in the corners of the figure, by default False.
+    show_time_axis : bool, optional
+        Whether to show the time axis (x-axis ticks and spine) at the bottom of the
+        figure, by default False.
+    show_calibration : bool, optional
+        Whether to show the calibration pulse in the left margin of each row, by default True.
+    show_leads_labels : bool, optional
+        Whether to print lead names onto the plot, by default True.
+    disconnect_segments : bool, optional
+        If True, the last sample of each segment is set to NaN so that adjacent
+        segments are not visually connected in the plot. By default True.
+    show_dpi : int, optional
+        DPI applied to the figure before displaying it when ``show=True``.
+        Has no effect when ``show=False``. By default 300.
+    """
+
     def __init__(
         self,
         grid_mode: Literal["cm"] | None = "cm",
@@ -144,46 +183,15 @@ class ECGPlotter:
         show_calibration: bool = True,
         show_leads_labels: bool = True,
         disconnect_segments: bool = True,
+        show_dpi: int = 300,
     ):
-        """The ECGPlotter class can be used to generate plots for multiple ECGs using the same plotting configuration.
-
-        Parameters
-        ----------
-        grid_mode : {'cm'} or None, optional
-            Grid style to overlay on the plot. 'cm' draws lines every 0.1 cm (= 1 mm),
-            with every 5th line slightly thicker. Pass None to disable the grid.
-            By default 'cm'.
-        speed : float, optional
-            The speed of the plot in mm/s, by default 25.0
-        voltage : float, optional
-            The space (in mm) corresponding to 1 mV, by default 10.0
-        row_distance : float, optional
-            Distance between the zero-lines of consecutive rows, expressed in mV, by default 3.0
-        line_width : float, optional
-            Thickness of the ECG signal lines (and calibration pulse) in points, by default 0.5
-        grid_color : str, optional
-            Color of the grid lines. Any matplotlib color string is accepted (e.g. '#f4aaaa',
-            'lightgray', 'gray'). By default '#f4aaaa' (light ECG-paper red).
-        print_information : bool, optional
-            Whether to print diagnostic parameters (speed, voltage, sampling frequency,
-            leads) and any extra metadata in the corners of the figure, by default False.
-        show_time_axis : bool, optional
-            Whether to show the time axis (x-axis ticks and spine) at the bottom of the
-            figure, by default False.
-        show_calibration : bool, optional
-            Whether to show the calibration pulse in the left margin of each row, by default True.
-        show_leads_labels : bool, optional
-            Whether to print lead names onto the plot, by default True.
-        disconnect_segments : bool, optional
-            If True, the last sample of each segment is set to NaN so that adjacent
-            segments are not visually connected in the plot. By default True.
-        """
         assert grid_mode in (None, "cm"), "grid_mode must be None or 'cm'"
         assert isinstance(speed, (int, float)) and speed > 0, "speed must be a positive number"
         assert isinstance(voltage, (int, float)) and voltage > 0, "voltage must be a positive number"
         assert isinstance(row_distance, (int, float)) and row_distance > 0, "row_distance must be a positive number"
         assert isinstance(line_width, (int, float)) and line_width > 0, "line_width must be a positive number"
         assert isinstance(grid_color, str) and len(grid_color) > 0, "grid_color must be a non-empty string"
+        assert isinstance(show_dpi, int) and show_dpi > 0, "show_dpi must be a positive integer"
 
         self.grid_mode = grid_mode
         self.speed = speed
@@ -196,6 +204,7 @@ class ECGPlotter:
         self.show_calibration = show_calibration
         self.show_leads_labels = show_leads_labels
         self.disconnect_segments = disconnect_segments
+        self.show_dpi = show_dpi
 
     def plot(
         self,
@@ -207,50 +216,39 @@ class ECGPlotter:
         stats: ECGStats | None = None,
         attention_map: AbstractAttentionMap | None = None,
     ) -> Figure:
-        """Plot the ECG in `ecg_data` using the plotting configuration specified in `configuration`.
+        """Plot the ECG in ``ecg_data`` using the plotting configuration specified in ``configuration``.
 
         Parameters
         ----------
         ecg_data : ECGDataType
-            The ECG data to be plotted. The following formats are supported
-                - tuple[list[np.ndarray], list[str]], where each array corresponds to a lead
-                  and has shape (n_samples,), and the list of strings contains the lead names
-                - tuple[np.ndarray, list[str]], where the array has shape (n_samples, n_leads)
-                  and the list of strings contains the names of the leads
-                - pd.DataFrame, where each column corresponds to a lead and the column names are the names of the leads
+            ECG signal data to plot.
         configuration : ConfigurationDataType | None, optional
-            The plotting configuration to be used. The following formats are supported:
-                - ConfigurationDataType, where sub-lists indicate what leads are plotted in
-                  each row, while strings indicate that the lead should be plotted
-                  for its entire duration.
-                - None, to plot all leads in the input ECG data for their entire duration.
-                By default None.
+            The plotting configuration to be used. By default None, meaning that each lead is plotted
+            on its own row for its entire duration.
         sampling_frequency : float, optional
             The sampling frequency of the ECG data in Hz, by default 500.0
         show : bool, optional
             Whether to show the plot, by default True
-        information : ECGInformation, optional
+        information : ECGInformation | None, optional
             Patient and recording metadata. When ``self.print_information`` is True, the
             hospital, patient name and date are printed above the first ECG row, and
             the machine model is printed in the bottom-right corner.
-        stats : ECGStats, optional
+        stats : ECGStats | None, optional
             Computed ECG statistics. When ``self.print_information`` is True, any
             non-None field is printed in the top-right corner, arranged in columns
             of up to three rows.
         attention_map : AbstractAttentionMap | None, optional
             Optional attention overlay. Pass an instance of
-            ``BackgroundAttentionMap``, ``IntervalAttentionMap``, or
-            ``LineColorAttentionMap`` so the attention data, validation, and
-            style-specific rendering parameters live together in one object.
-            Attention maps now require an explicit polarity mode:
-            positive-only attention uses a single color, while signed attention
-            spanning negative and positive values uses a two-color tuple.
-            When an attention map requests a color scale, ``plot()`` expands
-            the right margin automatically to preserve the ECG plotting area.
+            :class:`~pmecg.BackgroundAttentionMap`, :class:`~pmecg.IntervalAttentionMap`, or
+            :class:`~pmecg.LineColorAttentionMap`, where you specify the attention data and
+            the style settings.
+            When an attention map requests a color scale, ``plot()`` expands the right margin
+            automatically to preserve the ECG plotting area. You can disable this by setting
+            ``show_colormap=False`` in the AttentionMap initialization.
 
         Returns
         -------
-        Figure
+        matplotlib.figure.Figure
             The matplotlib figure object containing the plot
         """
         if isinstance(ecg_data, tuple):
@@ -383,6 +381,7 @@ class ECGPlotter:
             )
 
         if show:
+            fig.set_dpi(self.show_dpi)
             plt.show()
 
         return fig

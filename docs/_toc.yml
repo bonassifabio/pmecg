@@ -1,0 +1,14 @@
+format: jb-book
+root: intro
+chapters:
+  - file: examples/index
+    title: Examples
+    sections:
+      - file: examples/basic
+        title: Basic Usage
+      - file: examples/configurations
+        title: Custom Configurations
+      - file: examples/attention
+        title: Attention Map
+  - file: api/index
+    title: API Reference

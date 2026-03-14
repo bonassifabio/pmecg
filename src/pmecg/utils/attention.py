@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from numbers import Integral, Real
-from typing import List, Literal, Tuple, TypedDict, Union
+from typing import TypedDict
 
 import matplotlib.axes
 import numpy as np
@@ -11,19 +11,21 @@ from matplotlib import colors as mcolors
 from matplotlib.artist import Artist
 from matplotlib.collections import LineCollection, PolyCollection
 
-from .data import (
+from pmecg.types import (
+    AttentionColorType,
+    AttentionDataType,
+    AttentionPolarity,
     ConfigurationDataType,
     ECGDataType,
+)
+
+from .data import (
     _apply_configuration,
     _extract_input_leads,
     _numpy_to_dataframe,
     _validate_input_lead_names,
 )
 
-AttentionArrayType = Union[np.ndarray, List[np.ndarray]]
-AttentionDataType = Union[Tuple[AttentionArrayType, List[str]], pd.DataFrame]
-AttentionPolarity = Literal["positive", "signed"]
-AttentionColorType = Union[str, Tuple[str, str]]
 BACKGROUND_MAX_ALPHA = 0.75
 DEFAULT_POSITIVE_COLOR = "red"
 DEFAULT_SIGNED_COLORS = ("blue", "red")
@@ -40,21 +42,24 @@ class _IndexAnnotation(TypedDict):
 
 
 class AbstractAttentionMap(ABC):
-    """Abstract base class for attention-aware ECG overlays.
+    """Base class for attention-aware ECG overlays. Subclass this to implement a custom visual style.
 
-    Subclasses own the raw attention input and the rendering parameters for one
-    visual style. The shared :meth:`prepare` step converts the input into a
-    lead-aligned :class:`pandas.DataFrame`, validates the requested polarity,
-    applies a single global scaling factor when values exceed magnitude 1, and
-    segments the attention values according to the ECG layout.
+    Three built-in implementations are provided: :class:`~pmecg.IntervalAttentionMap`,
+    :class:`~pmecg.BackgroundAttentionMap`, and :class:`~pmecg.LineColorAttentionMap`.
+    To create a custom style, subclass :class:`AbstractAttentionMap` and implement
+    the abstract ``_rgba_for_value`` and ``build_artists`` methods.
+
+    The shared :meth:`prepare` step converts the raw input into a lead-aligned
+    :class:`pandas.DataFrame`, validates the requested polarity, applies a global
+    scaling factor when values exceed magnitude 1, and segments the attention values
+    according to the ECG layout.
 
     Parameters
     ----------
     data : AttentionDataType
-        Attention input. Accepts the same DataFrame and tuple formats as
-        :class:`ECGPlotter`: a :class:`pandas.DataFrame` whose columns are
-        lead names, or a ``(array, lead_names)`` tuple.
-    polarity : {'positive', 'signed'}
+        Attention signal: a :class:`pandas.DataFrame` whose columns are lead names,
+        or a ``(array, lead_names)`` tuple.
+    polarity : AttentionPolarity
         ``'positive'`` for non-negative attention values rendered with a single
         color; ``'signed'`` for values spanning both negative and positive,
         rendered with two colors.
@@ -157,7 +162,32 @@ def _smooth_attention(values: np.ndarray, window: int | None) -> np.ndarray:
 
 
 class IntervalAttentionMap(AbstractAttentionMap):
-    """Render attention as a colored band around the ECG trace."""
+    """Render attention as a colored band around the ECG trace.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention scores.
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    max_attention_mV : float, optional
+        Maximum half-width of the attention band in mV (at attention strength 1).
+        By default 0.25.
+    alpha : float, optional
+        Transparency of the band (0 = fully transparent, 1 = opaque).
+        By default 0.25.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``False``, since the band
+        itself provides a strong visual cue of the attention score.
+    smoothing_window : int | None, optional
+        If set, applies a moving-average with this window size to the
+        attention values before rendering. ``None`` disables smoothing.
+        By default ``None``.
+    """
 
     def __init__(
         self,
@@ -170,31 +200,6 @@ class IntervalAttentionMap(AbstractAttentionMap):
         show_colormap: bool = False,
         smoothing_window: int | None = None,
     ) -> None:
-        """
-        Parameters
-        ----------
-        data : AttentionDataType
-            Attention input (DataFrame or tuple formats).
-        polarity : {'positive', 'signed'}
-            ``'positive'`` for non-negative attention; ``'signed'`` for values
-            spanning both negative and positive.
-        color : AttentionColorType | None, optional
-            Single matplotlib color string for ``polarity='positive'``, or a
-            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
-            Defaults to red for positive and ``('blue', 'red')`` for signed.
-        max_attention_mV : float, optional
-            Maximum half-width of the attention band in mV (at attention
-            strength 1). By default 0.25.
-        alpha : float, optional
-            Transparency of the band (0 = fully transparent, 1 = opaque).
-            By default 0.25.
-        show_colormap : bool, optional
-            Whether to show the right-side color scale. By default ``False``.
-        smoothing_window : int | None, optional
-            If set, applies a moving-average with this window size to the
-            attention values before rendering. ``None`` disables smoothing.
-            By default ``None``.
-        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
@@ -250,7 +255,21 @@ class IntervalAttentionMap(AbstractAttentionMap):
 
 
 class BackgroundAttentionMap(AbstractAttentionMap):
-    """Render attention as semi-transparent background blocks behind each ECG row."""
+    """Render attention as semi-transparent background blocks behind each ECG row.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention input (DataFrame or tuple formats).
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``True``.
+    """
 
     def __init__(
         self,
@@ -260,21 +279,6 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
-        """
-        Parameters
-        ----------
-        data : AttentionDataType
-            Attention input (DataFrame or tuple formats).
-        polarity : {'positive', 'signed'}
-            ``'positive'`` for non-negative attention; ``'signed'`` for values
-            spanning both negative and positive.
-        color : AttentionColorType | None, optional
-            Single matplotlib color string for ``polarity='positive'``, or a
-            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
-            Defaults to red for positive and ``('blue', 'red')`` for signed.
-        show_colormap : bool, optional
-            Whether to show the right-side color scale. By default ``True``.
-        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
@@ -318,7 +322,20 @@ class BackgroundAttentionMap(AbstractAttentionMap):
 
 
 class LineColorAttentionMap(AbstractAttentionMap):
-    """Render attention as a gradient-colored line drawn on top of the ECG trace."""
+    """Render attention as a gradient-colored line drawn on top of the ECG trace.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention input (DataFrame or tuple formats).
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``True``."""
 
     def __init__(
         self,
@@ -328,21 +345,6 @@ class LineColorAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
-        """
-        Parameters
-        ----------
-        data : AttentionDataType
-            Attention input (DataFrame or tuple formats).
-        polarity : {'positive', 'signed'}
-            ``'positive'`` for non-negative attention; ``'signed'`` for values
-            spanning both negative and positive.
-        color : AttentionColorType | None, optional
-            Single matplotlib color string for ``polarity='positive'``, or a
-            ``(negative_color, positive_color)`` tuple for ``polarity='signed'``.
-            Defaults to red for positive and ``('blue', 'red')`` for signed.
-        show_colormap : bool, optional
-            Whether to show the right-side color scale. By default ``True``.
-        """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
@@ -405,7 +407,7 @@ def attention_map_from_indices_annotations(
 
     Returns
     -------
-    pd.DataFrame
+    pandas.DataFrame
         Attention values aligned to the ECG samples, with one column per lead
         and one row per ECG sample. Leads without annotations are filled with
         zeros.
@@ -460,7 +462,7 @@ def attention_map_from_time_annotations(
 
     Returns
     -------
-    pd.DataFrame
+    pandas.DataFrame
         Attention values aligned to the ECG samples, with one column per lead
         and one row per ECG sample. Leads without annotations are filled with
         zeros.

@@ -12,6 +12,9 @@ wheels/
 # Gemini repo
 .gemini.md
 
+# CLAUDE
+CLAUDE.md
+
 # uv
 uv.lock
 
@@ -32,3 +35,6 @@ htmlcov/
 simple_plot.py
 example_ecg.mat
 tests/.ptbxl-cache/
+
+# Docs builds
+_build/

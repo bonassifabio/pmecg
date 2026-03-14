@@ -1,0 +1,69 @@
+title: "pmecg"
+author: "Fabio Bonassi"
+copyright: ""
+logo: ""
+
+# Force re-execution of notebooks on each build.
+execute:
+  execute_notebooks: "auto"
+
+# Add a bibtex file for citations
+# bibtex_bibfiles:
+#   - references.bib
+
+# Information about where the book exists on the web
+repository:
+  url: https://github.com/bonassifabio/pmecg
+  branch: main
+
+# HTML-specific settings
+html:
+  use_issues_button: true
+  use_repository_button: true
+
+sphinx:
+  extra_extensions:
+    - sphinx.ext.autodoc
+    - sphinx.ext.napoleon
+    - sphinx.ext.viewcode
+    - sphinx.ext.intersphinx
+    - sphinx_autodoc_typehints
+    - sphinx_copybutton
+    - teachbooks_zoomies
+  config:
+    intersphinx_mapping:
+      python:
+        - "https://docs.python.org/3"
+        - null
+      numpy:
+        - "https://numpy.org/doc/stable"
+        - null
+      pandas:
+        - "https://pandas.pydata.org/docs"
+        - null
+      matplotlib:
+        - "https://matplotlib.org/stable"
+        - null
+    intersphinx_cache_limit: 365
+    autodoc_typehints: description
+    napoleon_google_docstring: false
+    napoleon_numpy_docstring: true
+    napoleon_use_param: true
+    napoleon_use_rtype: true
+    napoleon_preprocess_types: true
+    autodoc_type_aliases:
+      ECGDataType: pmecg.types.ECGDataType
+      ConfigurationDataType: pmecg.types.ConfigurationDataType
+      AttentionDataType: pmecg.types.AttentionDataType
+      AttentionPolarity: pmecg.types.AttentionPolarity
+      AttentionColorType: pmecg.types.AttentionColorType
+    html_context:
+      default_mode: light
+    html_theme_options:
+      show_toc_level: 2
+      logo:
+        alt_text: 1RT485
+        image_light: ../assets/logo.svg
+        image_dark:  ../assets/logo-dark.svg
+
+     
