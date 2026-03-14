@@ -64,11 +64,10 @@ jobs:
     steps:
       - name: Trigger RTD webhook
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          PAYLOAD="ref=$TAG"
+          PAYLOAD="{\"ref\":\"${GITHUB_REF}\"}"
           SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.RTD_SECRET }}" | awk '{print $2}')
           curl -X POST \
             -H "X-Hub-Signature-256: sha256=$SIG" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
             https://app.readthedocs.org/api/v2/webhook/pmecg/322018/
