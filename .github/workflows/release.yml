@@ -65,7 +65,7 @@ jobs:
       - name: Trigger RTD webhook
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          PAYLOAD="branches=$TAG"
+          PAYLOAD="ref=$TAG"
           SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.RTD_SECRET }}" | awk '{print $2}')
           curl -X POST \
             -H "X-Hub-Signature-256: sha256=$SIG" \
