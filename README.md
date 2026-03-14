@@ -44,7 +44,7 @@ fig = plotter.plot(df, configuration=configuration, sampling_frequency=fs)
 fig.savefig("ecg.png", dpi=300, bbox_inches="tight")
 ```
 
-For full documentation, visit [pmecg.readthedocs.io](https://pmecg.readthedocs.io/en/latest/).
+For full documentation, visit [pmecg.readthedocs.io](https://pmecg.readthedocs.io/en/stable/).
 
 ## License
 
