@@ -240,7 +240,7 @@ class ECGPlotter:
         attention_map : AbstractAttentionMap | None, optional
             Optional attention overlay. Pass an instance of
             :class:`~pmecg.BackgroundAttentionMap`, :class:`~pmecg.IntervalAttentionMap`, or
-            :class:`~pmecg.LineColorAttentionMap`, where you specify the attention data and 
+            :class:`~pmecg.LineColorAttentionMap`, where you specify the attention data and
             the style settings.
             When an attention map requests a color scale, ``plot()`` expands the right margin
             automatically to preserve the ECG plotting area. You can disable this by setting

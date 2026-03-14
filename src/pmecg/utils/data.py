@@ -19,11 +19,11 @@ _CONFIGURATION_ENTRY_ERROR = (
 
 class LeadsMap(NamedTuple):
     """Optional mapping from canonical leads to input lead names.
-    
-    For example, if the input ECG data uses "LI" for lead I and "-aVR" for lead AVR, 
-    the user can pass ``LeadsMap(I="LI", AVR="-aVR")`` to indicate that the canonical 
-    lead "I" corresponds to the input lead "LI" and that "AVR" corresponds to "-aVR". 
-    This allows the built-in templates to be resolved correctly even when the input data 
+
+    For example, if the input ECG data uses "LI" for lead I and "-aVR" for lead AVR,
+    the user can pass ``LeadsMap(I="LI", AVR="-aVR")`` to indicate that the canonical
+    lead "I" corresponds to the input lead "LI" and that "AVR" corresponds to "-aVR".
+    This allows the built-in templates to be resolved correctly even when the input data
     uses different lead names.
     """
 

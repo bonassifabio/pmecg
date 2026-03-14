@@ -163,30 +163,30 @@ def _smooth_attention(values: np.ndarray, window: int | None) -> np.ndarray:
 
 class IntervalAttentionMap(AbstractAttentionMap):
     """Render attention as a colored band around the ECG trace.
-        
-       Parameters
-       ----------
-       data : AttentionDataType
-           Attention scores.
-       polarity : AttentionPolarity
-           ``'positive'`` for non-negative attention; ``'signed'`` for values
-           spanning both negative and positive.
-       color : AttentionColorType | None, optional
-           The color(s) used for rendering, following the same semantics as in the base class.
-           By default, red for positive polarity and blue/red for signed polarity.
-       max_attention_mV : float, optional
-           Maximum half-width of the attention band in mV (at attention strength 1). 
-           By default 0.25.
-       alpha : float, optional
-           Transparency of the band (0 = fully transparent, 1 = opaque).
-           By default 0.25.
-       show_colormap : bool, optional
-           Whether to show the right-side color scale. By default ``False``, since the band 
-           itself provides a strong visual cue of the attention score.
-       smoothing_window : int | None, optional
-           If set, applies a moving-average with this window size to the
-           attention values before rendering. ``None`` disables smoothing.
-           By default ``None``.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention scores.
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    max_attention_mV : float, optional
+        Maximum half-width of the attention band in mV (at attention strength 1).
+        By default 0.25.
+    alpha : float, optional
+        Transparency of the band (0 = fully transparent, 1 = opaque).
+        By default 0.25.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``False``, since the band
+        itself provides a strong visual cue of the attention score.
+    smoothing_window : int | None, optional
+        If set, applies a moving-average with this window size to the
+        attention values before rendering. ``None`` disables smoothing.
+        By default ``None``.
     """
 
     def __init__(
@@ -256,19 +256,19 @@ class IntervalAttentionMap(AbstractAttentionMap):
 
 class BackgroundAttentionMap(AbstractAttentionMap):
     """Render attention as semi-transparent background blocks behind each ECG row.
-    
-       Parameters
-       ----------
-       data : AttentionDataType
-           Attention input (DataFrame or tuple formats).
-       polarity : AttentionPolarity
-           ``'positive'`` for non-negative attention; ``'signed'`` for values
-           spanning both negative and positive.
-       color : AttentionColorType | None, optional
-           The color(s) used for rendering, following the same semantics as in the base class.
-           By default, red for positive polarity and blue/red for signed polarity.
-       show_colormap : bool, optional
-           Whether to show the right-side color scale. By default ``True``.
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention input (DataFrame or tuple formats).
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``True``.
     """
 
     def __init__(
@@ -279,9 +279,7 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
-        """
-        
-        """
+        """ """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 
@@ -326,19 +324,19 @@ class BackgroundAttentionMap(AbstractAttentionMap):
 
 class LineColorAttentionMap(AbstractAttentionMap):
     """Render attention as a gradient-colored line drawn on top of the ECG trace.
-    
-       Parameters
-       ----------
-       data : AttentionDataType
-           Attention input (DataFrame or tuple formats).
-       polarity : AttentionPolarity
-           ``'positive'`` for non-negative attention; ``'signed'`` for values
-           spanning both negative and positive.
-       color : AttentionColorType | None, optional
-           The color(s) used for rendering, following the same semantics as in the base class.
-           By default, red for positive polarity and blue/red for signed polarity.
-       show_colormap : bool, optional
-           Whether to show the right-side color scale. By default ``True``."""
+
+    Parameters
+    ----------
+    data : AttentionDataType
+        Attention input (DataFrame or tuple formats).
+    polarity : AttentionPolarity
+        ``'positive'`` for non-negative attention; ``'signed'`` for values
+        spanning both negative and positive.
+    color : AttentionColorType | None, optional
+        The color(s) used for rendering, following the same semantics as in the base class.
+        By default, red for positive polarity and blue/red for signed polarity.
+    show_colormap : bool, optional
+        Whether to show the right-side color scale. By default ``True``."""
 
     def __init__(
         self,
