@@ -69,5 +69,6 @@ jobs:
           SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.RTD_SECRET }}" | awk '{print $2}')
           curl -X POST \
             -H "X-Hub-Signature-256: sha256=$SIG" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
             -d "$PAYLOAD" \
             https://app.readthedocs.org/api/v2/webhook/pmecg/322018/
