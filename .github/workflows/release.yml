@@ -6,8 +6,24 @@ on:
       - "v*"
 
 jobs:
+  wait-for-ci:
+    name: Wait for CI checks on main
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: Wait for CI to pass on this commit
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          running-workflow-name: wait-for-ci
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
+          allowed-conclusions: success,skipped
+
   build:
     name: Build wheel
+    needs: wait-for-ci
     runs-on: ubuntu-latest
 
     steps:
