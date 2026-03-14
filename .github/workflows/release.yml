@@ -56,9 +56,31 @@ jobs:
             --title "pmecg $TAG" \
             --generate-notes
 
+  publish-pypi:
+    name: Publish to PyPI
+    needs: github-release
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pmecg
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
   trigger-rtd:
     name: Trigger Read the Docs build
-    needs: github-release
+    needs: [github-release, publish-pypi]
     runs-on: ubuntu-latest
 
     steps:
