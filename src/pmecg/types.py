@@ -45,7 +45,7 @@ Example::
 AttentionArrayType = Union[np.ndarray, List[np.ndarray]]
 """Raw attention scores. The following data types are supported:
 
-- a 2-D NumPy array of shape ``(n_leads, n_samples)``
+- a 2-D NumPy array of shape ``(n_samples, n_leads)``
 - a list of 1-D arrays of shape ``(n_samples,)`` for each lead
 """
 
