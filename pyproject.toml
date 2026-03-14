@@ -64,7 +64,7 @@ test = "pytest"
 test-fast = "pytest -m 'not integration'"
 lint = "ruff check . && ruff format --check ."
 build-dist = "python -m build"
-build-docs = { cmd = "python -m ipykernel install --sys-prefix --name pmecg-docs --display-name 'Python 3 (pmecg docs)' --replace && jupyter-book build docs/", default-environment = "docs" }
+build-docs = { cmd = "python -m ipykernel install --sys-prefix --name pmecg-docs --display-name 'Python 3 (pmecg docs)' && jupyter-book build docs/", default-environment = "docs" }
 
 # Use the structured object syntax for cross-environment dependencies
 test-all = { depends-on = [
