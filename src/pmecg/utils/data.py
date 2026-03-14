@@ -62,7 +62,7 @@ def _normalize_canonical_lead_name(lead_name: str) -> str:
     return lead_name
 
 
-def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = None) -> pd.DataFrame:
+def _numpy_to_dataframe(ecg_data: np.ndarray | list[np.ndarray], lead_names: list[str] | None = None) -> pd.DataFrame:
     """Convert ECG data in numpy array format to a pandas DataFrame.
 
     Parameters

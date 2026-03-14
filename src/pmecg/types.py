@@ -18,7 +18,7 @@ ECGDataType = Union[Tuple[Union[List[np.ndarray], np.ndarray], List[str]], pd.Da
 The following formats are accepted:
 
 - a tuple of ``(signal, lead_names)`` where ``signal`` is either a 2D NumPy array
-  of shape ``(n_leads, n_samples)`` or a list of 1D arrays of shape ``(n_samples,)``
+  of shape ``(n_samples, n_leads)`` or a list of 1D arrays of shape ``(n_samples,)``
   for each lead, and ``lead_names`` is a list of strings naming the leads.
 - a :class:`pandas.DataFrame` whose columns are named after the leads.
 """

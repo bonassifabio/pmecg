@@ -3,12 +3,12 @@
 **pmecg** is a Python library for plotting high-quality, paper-like ECG signals using Matplotlib.
 It is designed with multiple users in mind:
 - researchers and clinicians who need publication-ready, customizable ECG visualisations
-- Machine Lerning scientists training image models for ECG classification
+- Machine Learning scientists training image models for ECG classification
 
 ## Features
 
 - Paper-like ECG rendering with correct physical dimensions (mm/s, mm/mV)
-- Flexible lead layouts: built-in templates (`"4x3"`, `"2x6"`, `"1x12"`, `"rhythm"`, …) or fully custom configurations
+- Flexible lead layouts: built-in templates (`"4x3"`, `"2x6"`, `"1x12"`, …) or fully custom configurations
 - Attention map overlays — highlight intervals, colour individual leads, or shade background regions
 - Clean public API: a single `ECGPlotter` class with sensible defaults
 
@@ -20,13 +20,14 @@ import pmecg
 
 # 12-lead ECG at 500 Hz, 10 seconds
 fs = 500
-signal = np.random.randn(12, fs * 10) * 0.5   # shape: (n_leads, n_samples)
-lead_names = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+signal = np.random.randn(fs * 10, 12) * 0.5   # shape: (n_samples, n_leads)
+lead_names = ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
 
-config = pmecg.template_factory("4x3")
+ecg_data = (signal, lead_names)
+config = pmecg.template_factory("4x3", ecg_data, leads_map=None)
 
-plotter = pmecg.ECGPlotter(sample_rate=fs, print_information=True)
-fig = plotter.plot(signal=(signal, lead_names), configuration=config)
+plotter = pmecg.ECGPlotter(print_information=True)
+fig = plotter.plot(ecg_data, sampling_frequency=fs, configuration=config)
 fig.savefig("ecg.pdf")
 ```
 

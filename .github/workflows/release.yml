@@ -16,7 +16,7 @@ jobs:
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
-          running-workflow-name: wait-for-ci
+          running-workflow-name: "Release pmecg"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 30
           allowed-conclusions: success,skipped

@@ -279,7 +279,6 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
     ) -> None:
-        """ """
         super().__init__(data, polarity=polarity, show_colormap=show_colormap)
         self.color = _validate_attention_color(color, self.polarity)
 

@@ -11,14 +11,14 @@ kernelspec:
 
 # Basic Usage
 
-We start of by reading the electrocardiogram with `id=1` from PTB-XL. 
+We start off by reading the electrocardiogram with `id=1` from PTB-XL.
 To do so, we use the [wfdb](https://wfdb-python.readthedocs.io/en/latest/wfdb.html) Python package.
 
 ```{admonition} Note
 :class: note
 
 The patient information and the ECG annotations are stored in the `ptbxl_database.csv` file.
-The ECG feaatures are available in the [PTB-XL+](https://physionet.org/content/ptb-xl-plus/1.0.1/) dataset. However, to avoid downloading large files from physionet, mock data will be used here.
+The ECG features are available in the [PTB-XL+](https://physionet.org/content/ptb-xl-plus/1.0.1/) dataset. The code below downloads the record directly from PhysioNet using `wfdb`, which requires network access.
 ```
 
 ```{code-cell} python
@@ -33,7 +33,7 @@ ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 ecg_df.head()
 ```
 
-We now have a pandas Dataframe where each columns contain all the sampled signal of each lead. Note that the column names match the canonical lead names:
+We now have a pandas DataFrame where each column contains all the sampled signal of each lead. Note that the column names match the canonical lead names:
 
 - Limb leads: "I", "II", "III"
 - AV leads: "AVR", "AVL", "AVF"

@@ -75,12 +75,18 @@ fig = plotter_custom.plot(ecg_df, sampling_frequency=fs, show=True)
 Instead of specifying a layout row-by-row, you can use one of the built-in
 named templates. The supported templates are:
 
-| Template | Layout |
-|----------|--------|
-| `'1x1'` … `'1x12'` | One lead per row, 1–12 leads |
-| `'2x4'` | 4 rows with two concurrent leads + rhythm strip |
-| `'2x6'` | 6 rows with two concurrent leads + rhythm strip |
-| `'4x3'` | 3 rows with four concurrent leads + rhythm strip |
+| Template | Leads |
+|----------|-------|
+| `'1x1'` | I |
+| `'1x2'` | I, II |
+| `'1x3'` | I, II, V2 |
+| `'1x4'` | I, II, III, V2 |
+| `'1x6'` | I, II, III, AVR, AVL, AVF |
+| `'1x8'` | I, II, V1, V2, V3, V4, V5, V6 |
+| `'1x12'` | I, II, III, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6 |
+| `'2x4'` | 4 rows with two concurrent leads + rhythm strip (II) |
+| `'2x6'` | 6 rows with two concurrent leads + rhythm strip (II) |
+| `'4x3'` | 3 rows with four concurrent leads + rhythm strip (II) |
 
 Because a template uses canonical lead names (`"I"`, `"II"`, …, `"V6"`) while
 your input DataFrame may use different column names, you must first call
