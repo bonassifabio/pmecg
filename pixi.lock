@@ -12654,8 +12654,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: pmecg
-  version: 0.2.3
-  sha256: 8fa2fd87eb0facfbf74972739a5bad166a68ab9f6b84f2d417f2a4c1c925da00
+  version: 0.2.3.post1
+  sha256: fce880b76ed67b67991ffe53617d3275b9aaeefdc3e178db1f703b4cd5a51efc
   requires_dist:
   - matplotlib>=3.7
   - numpy>=1.24
