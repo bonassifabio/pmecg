@@ -3,10 +3,12 @@ from __future__ import annotations
 import warnings
 from collections import Counter
 from collections.abc import Sequence
-from typing import List, NamedTuple, Tuple, Union
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+
+from pmecg.types import ConfigurationDataType, ECGDataType
 
 SUPPORTED_LEADS = ("I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6")
 SUPPORTED_TEMPLATES = ("1x1", "1x2", "1x3", "1x4", "1x6", "1x8", "1x12", "2x4", "2x6", "4x3")
@@ -16,7 +18,14 @@ _CONFIGURATION_ENTRY_ERROR = (
 
 
 class LeadsMap(NamedTuple):
-    """Optional mapping from canonical leads to input lead names."""
+    """Optional mapping from canonical leads to input lead names.
+    
+    For example, if the input ECG data uses "LI" for lead I and "-aVR" for lead AVR, 
+    the user can pass ``LeadsMap(I="LI", AVR="-aVR")`` to indicate that the canonical 
+    lead "I" corresponds to the input lead "LI" and that "AVR" corresponds to "-aVR". 
+    This allows the built-in templates to be resolved correctly even when the input data 
+    uses different lead names.
+    """
 
     I: str | None = None  # noqa: E741
     II: str | None = None
@@ -32,8 +41,6 @@ class LeadsMap(NamedTuple):
     V6: str | None = None
 
 
-ECGDataType = Union[Tuple[Union[List[np.ndarray], np.ndarray], List[str]], pd.DataFrame]
-ConfigurationDataType = List[Union[List[str], str]]
 _TEMPLATE_CONFIGURATIONS: dict[str, ConfigurationDataType] = {
     "1x1": ["I"],
     "1x2": ["I", "II"],
@@ -60,7 +67,7 @@ def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = Non
 
     Parameters
     ----------
-    ecg_data : np.ndarray | list[np.ndarray]
+    ecg_data : numpy.ndarray | list[numpy.ndarray]
         The ECG data to be converted. It should either be a numpy array with shape
         (n_samples, n_leads) or a list of numpy arrays, each with shape (n_samples,).
     lead_names : list[str] | None, defaults to None
@@ -69,7 +76,7 @@ def _numpy_to_dataframe(ecg_data: np.ndarray, lead_names: list[str] | None = Non
 
     Returns
     -------
-    pd.DataFrame
+    pandas.DataFrame
         A pandas DataFrame containing the ECG data, where each column corresponds to
         a lead and the column names are the names of the leads.
     """
@@ -264,7 +271,7 @@ def template_factory(template: str, ecg_data: ECGDataType, leads_map: LeadsMap |
     ecg_data : ECGDataType
         The ECG input used to resolve the final lead names. Must be the same
         object (or an object of the same type and with the same columns/lead
-        names) that will later be passed to :meth:`ECGPlotter.plot`.
+        names) that will later be passed to :meth:`~pmecg.ECGPlotter.plot`.
     leads_map : LeadsMap | None
         Optional mapping from conventional template lead names (``I``, ``II``,
         ``AVR``, ``V1``, …) to the corresponding column names in ``ecg_data``.
@@ -323,20 +330,18 @@ def _resolve_configuration(
     raise ValueError("configuration must be a list containing lead names or lists of lead names")
 
 
-# segment_leads
 def _segment_leads(
     df: pd.DataFrame, selected_leads: list[str], disconnect_segments: bool = True
 ) -> tuple[np.ndarray, list[str]]:
-    """Segment the ECG data so that segments of the leads are concatenated in a single vector.
+    """Concatenate equal-length segments of the selected leads into a single 1-D array.
 
-       Let $n$ denote the number of leads in `selected_leads`, and let $N$ be the sequence length (in number of data-points).
-       The output of this function will be a numpy array of shape (N,).
-
-       The segment i*N/n to (i+1)*N/n of the output will contain the data of the lead `selected_leads[i]` for i=0,...,n-1.
+    The output has the same length as the input DataFrame. Each lead occupies a
+    contiguous slice of ``len(df) // len(selected_leads)`` samples, laid out in
+    the order given by ``selected_leads``.
 
     Parameters
     ----------
-    df : pd.DataFrame
+    df : pandas.DataFrame
         The DataFrame containing the ECG data, where each column corresponds to a
         lead and the column names are the names of the leads.
     selected_leads : list[str]
@@ -347,7 +352,7 @@ def _segment_leads(
 
     Returns
     -------
-    tuple[np.ndarray, list[str]]
+    tuple[numpy.ndarray, list[str]]
         A tuple containing the segmented ECG data as a numpy array and the list of selected lead names.
     """
     if isinstance(selected_leads, str):
@@ -384,7 +389,7 @@ def _apply_configuration(
 
     Parameters
     ----------
-    df : pd.DataFrame
+    df : pandas.DataFrame
         The DataFrame containing the ECG data, where each column corresponds to a
         lead and the column names are the names of the leads.
     configuration : ConfigurationDataType | None, optional
@@ -399,7 +404,7 @@ def _apply_configuration(
 
     Returns
     -------
-    tuple[tuple[np.ndarray, list[str]], ...]
+    tuple[tuple[numpy.ndarray, list[str]], ...]
         A tuple of (signal, selected_leads) pairs — one per row in the
         configuration — where signal is the segmented ECG data for that row.
     """
