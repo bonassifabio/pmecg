@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"/>
-    <img src="assets/logo.svg" alt="pmecg logo" width="333"/>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/bonassifabio/pmecg/main/assets/logo-dark.svg"/>
+    <img src="https://raw.githubusercontent.com/bonassifabio/pmecg/main/assets/logo.svg" alt="pmecg logo" width="333"/>
   </picture>
 </p>
 
@@ -15,11 +15,11 @@
 
 | 1×3 layout | 4×3 layout |
 |:---:|:---:|
-| ![1x3 ECG](example/artifacts/no-attention/1/1x3.png) | ![4x3 ECG](example/artifacts/no-attention/1/4x3.png) |
+| ![1x3 ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/no-attention/1/1x3.png) | ![4x3 ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/no-attention/1/4x3.png) |
 
 | Interval attention | Line-color attention | Background attention |
 |:---:|:---:|:---:|
-| ![Interval attention ECG](example/artifacts/attention/4x3-interval-signed.png) | ![Line-color attention ECG](example/artifacts/attention/4x3-line-color-signed.png) | ![Background attention ECG](example/artifacts/attention/4x3-background-signed.png) |
+| ![Interval attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-interval-signed.png) | ![Line-color attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-line-color-signed.png) | ![Background attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-background-signed.png) |
 
 ## Installation
 
