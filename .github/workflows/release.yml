@@ -84,12 +84,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger RTD webhook
+      - name: Sync versions and trigger RTD build
         run: |
-          PAYLOAD="{\"ref\":\"${GITHUB_REF}\"}"
-          SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "${{ secrets.RTD_SECRET }}" | awk '{print $2}')
-          curl -X POST \
-            -H "X-Hub-Signature-256: sha256=$SIG" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            https://app.readthedocs.org/api/v2/webhook/pmecg/322018/
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          # Tell RTD to sync versions (so it discovers the new tag)
+          curl --fail-with-body -X POST \
+            -H "Authorization: Token ${{ secrets.RTD_API_TOKEN }}" \
+            https://readthedocs.org/api/v3/projects/pmecg/sync-versions/
+
+          # Wait for sync to pick up the new tag
+          sleep 15
+
+          # Trigger a build for this specific version
+          curl --fail-with-body -X POST \
+            -H "Authorization: Token ${{ secrets.RTD_API_TOKEN }}" \
+            https://readthedocs.org/api/v3/projects/pmecg/versions/${TAG}/builds/
