@@ -93,8 +93,21 @@ jobs:
             -H "Authorization: Token ${{ secrets.RTD_API_TOKEN }}" \
             https://readthedocs.org/api/v3/projects/pmecg/sync-versions/
 
-          # Wait for sync to pick up the new tag
-          sleep 15
+          # Poll until RTD discovers the new version (up to 2 minutes)
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Token ${{ secrets.RTD_API_TOKEN }}" \
+              https://readthedocs.org/api/v3/projects/pmecg/versions/${TAG}/)
+            if [ "$STATUS" = "200" ]; then
+              echo "Version ${TAG} found after $((i * 5)) seconds"
+              break
+            fi
+            if [ "$i" = "24" ]; then
+              echo "::error::Version ${TAG} not found after 120 seconds"
+              exit 1
+            fi
+            sleep 5
+          done
 
           # Trigger a build for this specific version
           curl --fail-with-body -X POST \
