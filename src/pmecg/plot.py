@@ -308,6 +308,7 @@ class ECGPlotter:
                 raise ValueError("StripLeadsConfig.ecg_data must contain at least one lead (got zero columns)")
             if strip_df.shape[0] == 0:
                 raise ValueError("StripLeadsConfig.ecg_data must contain at least one sample (got zero rows)")
+            _validate_input_lead_names(list(strip_df.columns))
             for lead_name in strip_df.columns:
                 strip_rows.append((strip_df[lead_name].values.copy(), [lead_name], [0], []))
 
