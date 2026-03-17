@@ -19,6 +19,7 @@ from pmecg import (
     ECGPlotter,
     IntervalAttentionMap,
     LineColorAttentionMap,
+    StripLeadsConfig,
     attention_map_from_indices_annotations,
     attention_map_from_time_annotations,
 )
@@ -373,7 +374,7 @@ def test_positive_attention_scales_globally_when_max_exceeds_one():
 
 
 def test_scale_attention_dataframe_preserves_positive_values_already_within_range():
-    scaled_df, attention_range = attention_utils._scale_attention_dataframe(
+    scaled_df, attention_range, scale = attention_utils._scale_attention_dataframe(
         pd.DataFrame({"I": [0.0, 0.25, 0.5]}),
         "positive",
     )
@@ -381,6 +382,7 @@ def test_scale_attention_dataframe_preserves_positive_values_already_within_rang
     expected = pd.DataFrame({"I": [0.0, 0.25, 0.5]})
     pd.testing.assert_frame_equal(scaled_df, expected)
     assert attention_range == (0.0, 0.5)
+    assert scale == pytest.approx(1.0)
 
 
 def test_signed_attention_scales_globally_across_columns():
@@ -398,7 +400,7 @@ def test_signed_attention_scales_globally_across_columns():
 
 
 def test_scale_attention_dataframe_preserves_signed_values_with_unit_magnitude():
-    scaled_df, attention_range = attention_utils._scale_attention_dataframe(
+    scaled_df, attention_range, scale = attention_utils._scale_attention_dataframe(
         pd.DataFrame({"I": [-1.0, 0.0, 0.5]}),
         "signed",
     )
@@ -406,6 +408,7 @@ def test_scale_attention_dataframe_preserves_signed_values_with_unit_magnitude()
     expected = pd.DataFrame({"I": [-1.0, 0.0, 0.5]})
     pd.testing.assert_frame_equal(scaled_df, expected)
     assert attention_range == (-1.0, 0.5)
+    assert scale == pytest.approx(1.0)
 
 
 def test_positive_attention_rejects_negative_values():
@@ -1155,3 +1158,277 @@ def test_smooth_attention_window_seq_len_returns_array_same_shape():
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     result = attention_utils._smooth_attention(values, len(values))
     assert result.shape == values.shape
+
+
+# ---------------------------------------------------------------------------
+# strip_leads_attention
+# ---------------------------------------------------------------------------
+
+
+def test_strip_lead_attentions_property_requires_prepare():
+    attn = IntervalAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 0.5, 1.0]}),
+        polarity="positive",
+        color="red",
+        strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0]}),
+    )
+    with pytest.raises(RuntimeError, match="has not been prepared yet"):
+        _ = attn.strip_lead_attentions
+
+
+def test_strip_lead_attentions_empty_when_not_provided():
+    attn = IntervalAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 0.5, 1.0]}),
+        polarity="positive",
+        color="red",
+    )
+    attn.prepare(["I"], 3, ["I"])
+    assert attn.strip_lead_attentions == {}
+
+
+def test_strip_lead_attentions_uses_global_scale_from_main_data():
+    # Main data max is 4.0 → scale = 4.0.  Strip value 2.0 → 2.0/4.0 = 0.5.
+    attn = BackgroundAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 2.0, 4.0]}),
+        polarity="positive",
+        strip_leads_attention=pd.DataFrame({"II": [0.0, 1.0, 2.0]}),
+    )
+    attn.prepare(["I"], 3, ["I"])
+    np.testing.assert_allclose(attn.strip_lead_attentions["II"], np.array([0.0, 0.25, 0.5]))
+
+
+def test_strip_lead_attentions_includes_only_provided_leads():
+    attn = LineColorAttentionMap(
+        data=pd.DataFrame({"I": [-1.0, 0.0, 1.0]}),
+        polarity="signed",
+        strip_leads_attention=pd.DataFrame({"II": [-0.5, 0.0, 0.5], "V1": [0.0, 0.5, 1.0]}),
+    )
+    attn.prepare(["I"], 3, ["I"])
+    assert set(attn.strip_lead_attentions.keys()) == {"II", "V1"}
+
+
+@pytest.mark.parametrize(
+    "attention_map_factory",
+    [
+        lambda: BackgroundAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+        lambda: IntervalAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            color="red",
+            strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+        lambda: LineColorAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+    ],
+)
+def test_strip_lead_with_matching_attention_renders_overlay(attention_map_factory):
+    ecg_df = pd.DataFrame({"I": np.zeros(5), "II": np.zeros(5)})
+    strip_df = pd.DataFrame({"II": np.zeros(5)})
+    plotter = ECGPlotter(
+        grid_mode=None,
+        show_calibration=False,
+        show_leads_labels=False,
+        print_information=False,
+        disconnect_segments=False,
+    )
+    # Baseline: no strip lead — only the two config-row artists.
+    fig_base = plotter.plot(
+        ecg_df,
+        configuration=["I", "II"],
+        sampling_frequency=1.0,
+        show=False,
+        attention_map=attention_map_factory(),
+    )
+    base_count = len(_first_axes(fig_base).collections)
+    plt.close(fig_base)
+
+    # With strip lead and matching strip attention — must produce more artists.
+    fig = plotter.plot(
+        ecg_df,
+        configuration=["I", "II"],
+        sampling_frequency=1.0,
+        show=False,
+        attention_map=attention_map_factory(),
+        strip_leads=StripLeadsConfig(ecg_data=strip_df),
+    )
+    try:
+        ax = _first_axes(fig)
+        assert len(ax.collections) > base_count
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "attention_map_factory",
+    [
+        lambda: BackgroundAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            strip_leads_attention=pd.DataFrame({"I": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+        lambda: IntervalAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            color="red",
+            strip_leads_attention=pd.DataFrame({"I": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+        lambda: LineColorAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0], "II": [0.25] * 5}),
+            polarity="positive",
+            strip_leads_attention=pd.DataFrame({"I": [0.0, 0.5, 1.0, 0.5, 0.0]}),
+        ),
+    ],
+)
+def test_strip_row_without_matching_lead_in_strip_attention_skips_overlay(attention_map_factory):
+    # strip_leads_attention has "I" only; strip lead is "II" → no overlay on strip row.
+    ecg_df = pd.DataFrame({"I": np.zeros(5), "II": np.zeros(5)})
+    strip_df = pd.DataFrame({"II": np.zeros(5)})
+    plotter = ECGPlotter(
+        grid_mode=None,
+        show_calibration=False,
+        show_leads_labels=False,
+        print_information=False,
+        disconnect_segments=False,
+    )
+    fig = plotter.plot(
+        ecg_df,
+        configuration=["I", "II"],
+        sampling_frequency=1.0,
+        show=False,
+        attention_map=attention_map_factory(),
+        strip_leads=StripLeadsConfig(ecg_data=strip_df),
+    )
+    try:
+        ax = _first_axes(fig)
+        # Only the two config rows should produce artists; strip row "II" has no match.
+        assert len(ax.collections) == 2
+    finally:
+        plt.close(fig)
+
+
+def test_strip_lead_attention_length_mismatch_warns_and_skips_overlay():
+    # Strip ECG has 5 samples but strip attention has 10 → mismatch → warn and skip.
+    ecg_df = pd.DataFrame({"I": np.zeros(5)})
+    strip_df = pd.DataFrame({"II": np.zeros(5)})
+    strip_attention_df = pd.DataFrame({"II": np.ones(10)})
+    plotter = ECGPlotter(
+        grid_mode=None,
+        show_calibration=False,
+        show_leads_labels=False,
+        print_information=False,
+        disconnect_segments=False,
+    )
+    with pytest.warns(UserWarning, match="does not match strip ECG length"):
+        fig = plotter.plot(
+            ecg_df,
+            configuration=["I"],
+            sampling_frequency=1.0,
+            show=False,
+            attention_map=BackgroundAttentionMap(
+                data=pd.DataFrame({"I": [0.0, 0.25, 0.5, 0.75, 1.0]}),
+                polarity="positive",
+                strip_leads_attention=strip_attention_df,
+            ),
+            strip_leads=StripLeadsConfig(ecg_data=strip_df),
+        )
+    try:
+        ax = _first_axes(fig)
+        # Config row "I" produces one artist; strip row skipped due to length mismatch.
+        assert len(ax.collections) == 1
+    finally:
+        plt.close(fig)
+
+
+def test_strip_lead_attentions_rejects_negative_values_with_positive_polarity():
+    attn = IntervalAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 0.5, 1.0]}),
+        polarity="positive",
+        color="red",
+        strip_leads_attention=pd.DataFrame({"II": [-0.5, 0.0, 0.5]}),
+    )
+    with pytest.raises(ValueError, match="must contain only non-negative values"):
+        attn.prepare(["I"], 3, ["I"])
+
+
+def test_strip_lead_attentions_rejects_all_nan_column():
+    attn = BackgroundAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 0.5, 1.0]}),
+        polarity="positive",
+        strip_leads_attention=pd.DataFrame({"II": [np.nan, np.nan, np.nan]}),
+    )
+    with pytest.raises(ValueError, match="at least one finite value"):
+        attn.prepare(["I"], 3, ["I"])
+
+
+def test_strip_lead_attentions_allows_one_sided_values_with_signed_polarity():
+    # Relaxed: strip attention does not need to span both signs.
+    attn = LineColorAttentionMap(
+        data=pd.DataFrame({"I": [-1.0, 0.0, 1.0]}),
+        polarity="signed",
+        strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0]}),
+    )
+    attn.prepare(["I"], 3, ["I"])  # must not raise
+    assert "II" in attn.strip_lead_attentions
+
+
+def test_strip_lead_background_attention_colors_match_scaled_values():
+    # Strip attention II=[0, 0.5, 1.0, 0.5] with main scale=1.0 → scaled values unchanged.
+    # BackgroundAttentionMap alpha = BACKGROUND_MAX_ALPHA * strength.
+    ecg_df = pd.DataFrame({"I": np.zeros(4)})
+    strip_df = pd.DataFrame({"II": np.zeros(4)})
+    strip_attention = pd.DataFrame({"II": [0.0, 0.5, 1.0, 0.5]})
+    plotter = ECGPlotter(
+        grid_mode=None,
+        show_calibration=False,
+        show_leads_labels=False,
+        print_information=False,
+        disconnect_segments=False,
+    )
+    fig = plotter.plot(
+        ecg_df,
+        configuration=["I"],
+        sampling_frequency=1.0,
+        show=False,
+        attention_map=BackgroundAttentionMap(
+            data=pd.DataFrame({"I": [0.0, 0.5, 1.0, 0.5]}),
+            polarity="positive",
+            color="red",
+            strip_leads_attention=strip_attention,
+        ),
+        strip_leads=StripLeadsConfig(ecg_data=strip_df),
+    )
+    try:
+        ax = _first_axes(fig)
+        # Two PolyCollections: one for config row "I", one for strip row "II".
+        poly_collections = [c for c in ax.collections if isinstance(c, PolyCollection)]
+        assert len(poly_collections) == 2
+        strip_colors = poly_collections[1].get_facecolors()
+        # Segments: (0,0.5), (0.5,1.0), (1.0,0.5) → avg attention 0.25, 0.75, 0.75
+        # alpha = BACKGROUND_MAX_ALPHA * strength = 0.75 * avg_attention
+        expected_alphas = np.array([0.75 * 0.25, 0.75 * 0.75, 0.75 * 0.75])
+        np.testing.assert_allclose(strip_colors[:, 3], expected_alphas, atol=1e-6)
+        # All segments should be red.
+        red_rgb = mcolors.to_rgb("red")
+        np.testing.assert_allclose(strip_colors[:, :3], np.tile(red_rgb, (3, 1)), atol=1e-6)
+    finally:
+        plt.close(fig)
+
+
+def test_strip_lead_attentions_returns_independent_copy():
+    attn = BackgroundAttentionMap(
+        data=pd.DataFrame({"I": [0.0, 0.5, 1.0]}),
+        polarity="positive",
+        strip_leads_attention=pd.DataFrame({"II": [0.0, 0.5, 1.0]}),
+    )
+    attn.prepare(["I"], 3, ["I"])
+    copy1 = attn.strip_lead_attentions
+    copy1["new_key"] = np.zeros(3)
+    copy2 = attn.strip_lead_attentions
+    assert "new_key" not in copy2

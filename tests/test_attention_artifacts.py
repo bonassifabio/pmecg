@@ -54,13 +54,21 @@ def _make_unipolar_attention(n_samples: int, lead_names: list[str]) -> pd.DataFr
     return pd.DataFrame(attention, columns=lead_names)
 
 
-def _build_attention_map(kind: str, attention_variant: str, attention_df: pd.DataFrame) -> pmecg.AbstractAttentionMap:
+def _build_attention_map(
+    kind: str,
+    attention_variant: str,
+    attention_df: pd.DataFrame,
+    strip_leads_attention: pd.DataFrame | None = None,
+) -> pmecg.AbstractAttentionMap:
     if attention_variant == "signed":
         common_kwargs = {"data": attention_df, "polarity": "signed", "color": ("blue", "red")}
     elif attention_variant == "positive":
         common_kwargs = {"data": attention_df, "polarity": "positive", "color": "red"}
     else:
         raise ValueError(f"Unsupported attention variant: {attention_variant}")
+
+    if strip_leads_attention is not None:
+        common_kwargs["strip_leads_attention"] = strip_leads_attention
 
     if kind == "interval":
         return IntervalAttentionMap(max_attention_mV=0.5, alpha=0.4, **common_kwargs)
@@ -184,13 +192,15 @@ STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled strip lead fills the sam
 )
 @pytest.mark.parametrize("attention_kind", ["interval", "line-color", "background"])
 def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: str, attention_factory) -> None:
-    """Plot a PTB-XL record with attention and a 2x-long strip lead (II at half speed)."""
+    """Plot a PTB-XL record with attention overlaid on both the main layout and a 2x-long strip lead (II at half speed)."""
     record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
     ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
     attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
 
     ii_signal = record.p_signal[:, list(record.sig_name).index(STRIP_LEAD)]
-    strip_df = pd.DataFrame({STRIP_LEAD: np.concatenate([ii_signal, ii_signal])})
+    strip_signal = np.concatenate([ii_signal, ii_signal])
+    strip_df = pd.DataFrame({STRIP_LEAD: strip_signal})
+    strip_attention_df = attention_factory(len(strip_signal), [STRIP_LEAD])
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
     plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
@@ -208,7 +218,7 @@ def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: s
         show=False,
         information=information,
         stats=stats,
-        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df),
+        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df, strip_attention_df),
         strip_leads=StripLeadsConfig(ecg_data=strip_df, speed=STRIP_SPEED),
     )
 

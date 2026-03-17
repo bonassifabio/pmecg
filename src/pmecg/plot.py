@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Literal
 
@@ -371,15 +372,31 @@ class ECGPlotter:
         for i, (row_signal, row_leads, row_offsets, _row_segs) in enumerate(all_rows):
             is_strip = i >= n_config_rows
             row_attention = None
+            row_attention_map = None
             if not is_strip and prepared_attention is not None:
                 row_attention = prepared_attention.row_attentions[i]
+                row_attention_map = prepared_attention
+            elif is_strip and prepared_attention is not None:
+                strip_lead_name = row_leads[0]
+                strip_attn = prepared_attention.strip_lead_attentions.get(strip_lead_name)
+                if strip_attn is not None:
+                    if len(strip_attn) == len(row_signal):
+                        row_attention = strip_attn
+                        row_attention_map = prepared_attention
+                    else:
+                        warnings.warn(
+                            f"Strip lead {strip_lead_name!r} attention length ({len(strip_attn)}) "
+                            f"does not match strip ECG length ({len(row_signal)}); overlay skipped.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
             _plot_row(
                 ax,
                 (row_signal, row_leads),
                 ctx,
                 y_offsets[i],
                 attention_values=row_attention,
-                attention_map=prepared_attention if not is_strip else None,
+                attention_map=row_attention_map,
                 time_to_inches=strip_tti if is_strip else None,
                 segment_offsets=row_offsets,
             )

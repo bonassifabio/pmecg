@@ -236,3 +236,61 @@ working with pre-segmented windows), use
 `pmecg.attention_map_from_indices_annotations` with `index_range` instead of
 `time_range`. The call signature is otherwise identical.
 ```
+
+---
+
+## Strip Lead Attention
+
+When `strip_leads` is used together with an attention map, strip rows are
+rendered **without** an attention overlay by default. To show attention on a
+strip lead, pass `strip_leads_attention` to the attention map constructor.
+
+The strip attention data is scaled with the **same global scale factor** as
+`data`, so colors are directly comparable between the main layout rows and the
+strip rows. The strip data may have a different number of samples than `data` —
+a common case is a strip lead that shows more of the recording (e.g. double
+length at half speed).
+
+Any strip lead whose name is **not** present in `strip_leads_attention` is
+rendered without an overlay; strips that are present receive the matching
+attention array.
+
+```{code-cell} python
+# ecg_df, fs, and plotter are defined in the Setup section above.
+
+# Build a positive attention array for the main layout (all 12 leads).
+positive_attention_df = pd.DataFrame(
+    np.clip(np.sin(2 * np.pi * np.arange(n_samples)[:, None] / (n_samples / 3) + np.arange(12) * 0.2), 0, None),
+    columns=ecg_df.columns,
+)
+
+# The strip lead (II) shows the recording twice at half speed.
+ii_values = ecg_df['II'].to_numpy()
+strip_signal = np.concatenate([ii_values, ii_values])
+strip_df = pd.DataFrame({'II': strip_signal})
+
+# Build strip attention at the doubled length by concatenating lead's II attention mask to itself.
+strip_attention_df = pd.concat(
+    [positive_attention_df[['II']], positive_attention_df[['II']]], 
+    axis=0, 
+    ignore_index=True
+)
+
+interval_map_with_strip = pmecg.IntervalAttentionMap(
+    positive_attention_df,
+    polarity='positive',
+    color='tomato',
+    max_attention_mV=0.3,
+    alpha=0.4,
+    strip_leads_attention=strip_attention_df,
+)
+
+fig = plotter.plot(
+    ecg_df,
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    sampling_frequency=fs,
+    attention_map=interval_map_with_strip,
+    strip_leads=pmecg.StripLeadsConfig(ecg_data=strip_df, speed=plotter.speed / 2),
+    show=True,
+)
+```
