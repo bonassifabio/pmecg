@@ -249,11 +249,11 @@ class ECGPlotter:
             automatically to preserve the ECG plotting area. You can disable this by setting
             ``show_colormap=False`` in the AttentionMap initialization.
         strip_leads : StripLeadsConfig | None, optional
-            Optional strip leads appended after the configuration rows. Each lead
-            in ``strip_leads.leads`` is plotted as a full-width row showing the
-            entire recording. When ``strip_leads.speed`` differs from the plotter's
-            speed, those rows use the specified paper speed and the figure width
-            is expanded if needed. By default ``None``.
+            Optional strip leads appended after the configuration rows. Every lead
+            present in ``strip_leads.ecg_data`` is plotted as a full-width row
+            showing the entire recording. When ``strip_leads.speed`` differs from
+            the plotter's speed, those rows use the specified paper speed and the
+            figure width is expanded if needed. By default ``None``.
 
         Returns
         -------
