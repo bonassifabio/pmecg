@@ -56,19 +56,26 @@ class LeadSegment:
             raise ValueError(f"LeadSegment 'end' ({self.end}) must be greater than 'start' ({self.start})")
 
 
-ConfigurationDataType = List[Union[List[Union[str, LeadSegment]], str, LeadSegment]]
+_StringConfig = List[Union[List[str], str]]
+_SegmentConfig = List[Union[List[LeadSegment], LeadSegment]]
+
+ConfigurationDataType = Union[_StringConfig, _SegmentConfig]
 """Layout configuration accepted by :meth:`~pmecg.ECGPlotter.plot`.
 
-A list where each element is either:
+Either a purely string-based layout or a purely :class:`LeadSegment`-based layout —
+the two kinds **cannot be mixed** within the same configuration.
+
+**String-based** (each row element is a ``str`` or ``list[str]``):
 
 - a **list of lead name strings** — those leads are concatenated side-by-side in one row, or
-- a **single lead name string** — that lead occupies the full row width, or
+- a **single lead name string** — that lead occupies the full row width.
+
+**Segment-based** (each row element is a :class:`LeadSegment` or ``list[LeadSegment]``):
+
 - a **list of LeadSegment objects** — leads with explicit start/end sample indices in one row, or
 - a **single LeadSegment object** — a lead with explicit range occupying the full row width.
 
-Within a list (row), all entries must be the same type: all strings or all :class:`LeadSegment` objects.
-
-Example (classic)::
+Example (string-based)::
 
     config = [
         ["I", "II", "III"],  # Leads I, II, III in the first row
@@ -76,7 +83,7 @@ Example (classic)::
         ["AVL", "AVF"],       # Leads AVL and AVF in the third row
     ]
 
-Example (advanced)::
+Example (segment-based)::
 
     config = [
         [LeadSegment(lead='I', start=0, end=500), LeadSegment(lead='II', start=0, end=500)],

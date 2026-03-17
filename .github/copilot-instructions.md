@@ -41,14 +41,14 @@ Data flows: `ECGPlotter.plot()` → data layer normalizes input and expands conf
 ## Key Conventions
 
 **Configuration system:**
-- A *configuration* is `list[list[str] | str]` — each element is a row; a string is a full-width lead, a sublist is concatenated leads sharing a row.
+- A *configuration* is `list[list[str] | str] | list[list[LeadSegment] | LeadSegment]` — either a purely string-based layout or a purely `LeadSegment`-based layout (mixing is not allowed). Each row element is a string/`LeadSegment` for a full-width row, or a list for concatenated leads.
 - Built-in templates (`"4x3"`, `"2x6"`, `"1x12"`, etc.) must be expanded via `template_factory()` before passing to `ECGPlotter.plot()` — `plot()` does not accept raw template strings.
 - Custom lead names are mapped to canonical names (`"I"`, `"II"`, ..., `"V6"`) via `LeadsMap`.
 
 **Types:**
 ```python
 ECGDataType = tuple[list[np.ndarray] | np.ndarray, list[str]] | pd.DataFrame
-ConfigurationDataType = list[list[str] | str]
+ConfigurationDataType = list[list[str] | str] | list[list[LeadSegment] | LeadSegment]
 ```
 
 **Naming:**

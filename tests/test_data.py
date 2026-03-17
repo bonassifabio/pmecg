@@ -689,17 +689,15 @@ class TestApplyConfigurationAdvanced:
         for signal, _, _, _ in result:
             assert signal.shape == (120,)
 
-    # Checks that mixing string rows and LeadSegment rows works when sample counts match.
+    # Checks that mixing string rows and LeadSegment rows raises an error.
     def test_mixed_string_and_lead_segment_rows(self):
         df = _make_12lead_df()
         config = [
             [LeadSegment(lead="I", start=0, end=N_SAMPLES)],
             "II",
         ]
-        result = _apply_configuration(df, config, disconnect_segments=False)
-        assert len(result) == 2
-        assert result[0][0].shape == (N_SAMPLES,)
-        assert result[1][0].shape == (N_SAMPLES,)
+        with pytest.raises(ValueError, match="mixes string-based and LeadSegment-based rows"):
+            _apply_configuration(df, config, disconnect_segments=False)
 
     # Checks that a single LeadSegment entry as a full-width row works.
     def test_single_lead_segment_entry(self):

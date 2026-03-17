@@ -30,7 +30,8 @@ _CABRERA_SUBSTITUTION: dict[str, str] = {
 _CABRERA_LIMB_LEADS = frozenset(("I", "II", "III", "AVR", "AVL", "AVF"))
 _CONFIGURATION_ENTRY_ERROR = (
     "configuration list must contain either strings (lead names), sub-lists of strings (lead names for each row), "
-    "LeadSegment objects, or sub-lists of LeadSegment objects; within a row all entries must be the same type"
+    "LeadSegment objects, or sub-lists of LeadSegment objects; "
+    "all rows must use the same type (all string-based or all LeadSegment-based)"
 )
 
 
@@ -678,7 +679,9 @@ def _apply_configuration(
         lead and the column names are the names of the leads.
     configuration : ConfigurationDataType | None, optional
         The plotting configuration to be applied.
-        - If a list is provided, each element represents a row.
+        - If a list is provided, each element represents a row. All rows must be the
+          same kind — either all string-based or all :class:`~pmecg.types.LeadSegment`-based;
+          mixing is not allowed.
           - If the element is a string, it is a lead plotted for its entire duration.
           - If the element is a list of strings, those leads are concatenated in that row.
           - If the element is a LeadSegment, it is a lead with an explicit sample range.
@@ -708,6 +711,17 @@ def _apply_configuration(
     result: list[tuple[np.ndarray, list[str], list[int], list[LeadSegment]]] = []
     has_lead_segment_rows = False
     if isinstance(configuration, list):
+        # Validate cross-row homogeneity: all rows must be string-based or all LeadSegment-based.
+        def _is_segment_entry(e: object) -> bool:
+            return isinstance(e, LeadSegment) or (isinstance(e, list) and len(e) > 0 and isinstance(e[0], LeadSegment))
+
+        has_segment = any(_is_segment_entry(e) for e in configuration)
+        has_string = any(isinstance(e, (str, list)) and not _is_segment_entry(e) for e in configuration)
+        if has_segment and has_string:
+            raise ValueError(
+                "configuration mixes string-based and LeadSegment-based rows; "
+                "all rows must use the same type (all string-based or all LeadSegment-based)"
+            )
         for entry in configuration:
             validated = _validate_configuration_row_definition(entry)
             is_str_list = isinstance(validated, list) and len(validated) > 0 and isinstance(validated[0], str)
