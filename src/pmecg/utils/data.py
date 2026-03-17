@@ -648,6 +648,12 @@ def _build_row_signal(
         start = lc.start
         end = lc.end
         seg_len = end - start
+        n_samples = len(df)
+        if start >= n_samples or end > n_samples:
+            raise ValueError(
+                f"LeadSegment for lead '{lead}' requests samples [{start}:{end}], "
+                f"but the DataFrame only has {n_samples} samples."
+            )
         offsets.append(offset)
         signal[offset : offset + seg_len] = df[lead].values[start:end]
         if disconnect_segments and seg_len > 0:
