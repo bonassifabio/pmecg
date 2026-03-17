@@ -19,7 +19,8 @@ from .plot import (
     attention_map_from_indices_annotations,
     attention_map_from_time_annotations,
 )
-from .utils.data import SUPPORTED_LEADS, LeadsMap, template_factory
+from .types import LeadSegment, StripLeadsConfig
+from .utils.data import SUPPORTED_LEADS, LeadsMap, cabrera_factory, expand_to_12_leads, template_factory
 
 __all__ = [
     "AbstractAttentionMap",
@@ -28,10 +29,14 @@ __all__ = [
     "ECGPlotter",
     "ECGStats",
     "IntervalAttentionMap",
+    "LeadSegment",
     "LeadsMap",
     "LineColorAttentionMap",
     "SUPPORTED_LEADS",
+    "StripLeadsConfig",
     "attention_map_from_indices_annotations",
     "attention_map_from_time_annotations",
+    "cabrera_factory",
+    "expand_to_12_leads",
     "template_factory",
 ]

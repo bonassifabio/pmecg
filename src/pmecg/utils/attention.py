@@ -86,21 +86,31 @@ class AbstractAttentionMap(ABC):
 
     @property
     def dataframe(self) -> pd.DataFrame:
-        """Prepared attention values aligned to the ECG leads."""
+        """Scaled attention values as a DataFrame (one column per ECG lead, one row per sample).
+
+        Requires :meth:`prepare` to have been called first (done automatically by
+        :meth:`ECGPlotter.plot <pmecg.ECGPlotter.plot>`).
+        """
         if self._dataframe is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._dataframe
 
     @property
     def row_attentions(self) -> tuple[np.ndarray, ...]:
-        """Prepared attention values segmented to match each ECG row."""
+        """Scaled attention values segmented to match each ECG row.
+
+        Requires :meth:`prepare` to have been called first.
+        """
         if self._resolved_range is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._row_attentions
 
     @property
     def range(self) -> tuple[float, float]:
-        """Resolved global attention range used for rendering."""
+        """Global ``(lower, upper)`` attention range after scaling, used for color mapping.
+
+        Requires :meth:`prepare` to have been called first.
+        """
         if self._resolved_range is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._resolved_range
@@ -116,7 +126,13 @@ class AbstractAttentionMap(ABC):
         n_samples: int,
         configuration: ConfigurationDataType | None,
     ) -> None:
-        """Convert, validate, scale, and segment the attention input for plotting."""
+        """Convert, validate, scale, and segment the attention input for plotting.
+
+        Called automatically by :meth:`ECGPlotter.plot <pmecg.ECGPlotter.plot>` before
+        rendering; you do not normally need to call this manually. After this method
+        returns, the :attr:`dataframe`, :attr:`row_attentions`, and :attr:`range`
+        properties become available.
+        """
         df = _attention_to_dataframe(self.data)
         aligned_df = _align_attention_dataframe(df, ecg_leads)
         if aligned_df.shape[0] != n_samples:
@@ -126,7 +142,7 @@ class AbstractAttentionMap(ABC):
         self._dataframe = scaled_df
         self._resolved_range = resolved_range
         self._row_attentions = tuple(
-            signal for signal, _ in _apply_configuration(scaled_df, configuration, disconnect_segments=False)
+            row[0] for row in _apply_configuration(scaled_df, configuration, disconnect_segments=False)
         )
 
     def colormap_rgba(self, n_steps: int = 256) -> np.ndarray:
@@ -401,9 +417,19 @@ def attention_map_from_indices_annotations(
         :class:`pmecg.ECGPlotter`.
     **annotations_by_lead : list[dict]
         Keyword arguments keyed by lead name. Each value must be a list of
-        dictionaries with the keys ``index_range`` and ``attention_value``.
-        ``index_range`` is interpreted as a half-open interval ``[start, end)``
-        over ECG sample indices.
+        dictionaries with two required keys:
+
+        - ``"index_range"`` — a 2-element list or tuple ``[start, end)`` of
+          non-negative integer sample indices (half-open interval).
+        - ``"attention_value"`` — a finite float attention score for that range.
+
+        Example::
+
+            attention_map_from_indices_annotations(
+                ecg_data,
+                II=[{"index_range": [100, 300], "attention_value": 0.8}],
+                V1=[{"index_range": [50, 150], "attention_value": 0.5}],
+            )
 
     Returns
     -------
@@ -456,9 +482,19 @@ def attention_map_from_time_annotations(
         Sampling frequency in Hz.
     **annotations_by_lead : list[dict]
         Keyword arguments keyed by lead name. Each value must be a list of
-        dictionaries with the keys ``time_range`` and ``attention_value``.
-        ``time_range`` is interpreted as a half-open interval ``[start, end)``
-        expressed in seconds.
+        dictionaries with two required keys:
+
+        - ``"time_range"`` — a 2-element list or tuple ``[start, end)`` of
+          non-negative floats in seconds (half-open interval).
+        - ``"attention_value"`` — a finite float attention score for that range.
+
+        Example::
+
+            attention_map_from_time_annotations(
+                ecg_data, fs=500,
+                II=[{"time_range": [0.2, 0.6], "attention_value": 0.8}],
+                V1=[{"time_range": [0.1, 0.3], "attention_value": 0.5}],
+            )
 
     Returns
     -------

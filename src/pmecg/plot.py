@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
-from .types import ConfigurationDataType, ECGDataType
+from .types import ConfigurationDataType, ECGDataType, StripLeadsConfig
 from .utils.attention import (
     AbstractAttentionMap,
     BackgroundAttentionMap,
@@ -36,6 +36,7 @@ from .utils.plot import (
     _plot_row,
     _print_information,
     _RenderContext,
+    _validate_time_axis_config,
 )
 
 __all__ = [
@@ -215,6 +216,7 @@ class ECGPlotter:
         information: ECGInformation | None = None,
         stats: ECGStats | None = None,
         attention_map: AbstractAttentionMap | None = None,
+        strip_leads: StripLeadsConfig | None = None,
     ) -> Figure:
         """Plot the ECG in ``ecg_data`` using the plotting configuration specified in ``configuration``.
 
@@ -245,6 +247,12 @@ class ECGPlotter:
             When an attention map requests a color scale, ``plot()`` expands the right margin
             automatically to preserve the ECG plotting area. You can disable this by setting
             ``show_colormap=False`` in the AttentionMap initialization.
+        strip_leads : StripLeadsConfig | None, optional
+            Optional strip leads appended after the configuration rows. Each lead
+            in ``strip_leads.leads`` is plotted as a full-width row showing the
+            entire recording. When ``strip_leads.speed`` differs from the plotter's
+            speed, those rows use the specified paper speed and the figure width
+            is expanded if needed. By default ``None``.
 
         Returns
         -------
@@ -263,6 +271,9 @@ class ECGPlotter:
 
         _validate_input_lead_names(list(df_data.columns))
 
+        if configuration is not None and len(configuration) == 0:
+            raise ValueError("configuration must not be empty; pass None to use the default single-lead-per-row layout")
+
         resolved_configuration = _resolve_configuration(configuration, list(df_data.columns))
         prepared_attention = attention_map
         if prepared_attention is not None:
@@ -270,15 +281,46 @@ class ECGPlotter:
         reserves_attention_margin = prepared_attention is not None and prepared_attention.shows_color_scale
         shows_attention_color_scale = reserves_attention_margin and prepared_attention.show_colormap
 
-        # Apply the layout configuration → one (signal, leads) pair per row
-        rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
-        n_rows = len(rows)
+        # Apply the layout configuration → one (signal, leads, offsets, segments) 4-tuple per row
+        config_rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
+        n_config_rows = len(config_rows)
 
-        # Number of samples is the same for every row (the full recording length)
-        seq_len = df_data.shape[0]
+        seq_len = max(len(row[0]) for row in config_rows) if config_rows else df_data.shape[0]
+
+        # --- Strip leads ---
+        strip_rows: list[tuple[np.ndarray, list[str], list[int], list]] = []
+        strip_speed_value: float | None = None
+        strip_tti: float | None = None  # time_to_inches for strip rows
+
+        strip_df: pd.DataFrame | None = None
+        if strip_leads is not None:
+            if not isinstance(strip_leads, StripLeadsConfig):
+                raise TypeError(f"strip_leads must be a StripLeadsConfig instance, got {type(strip_leads).__name__}")
+            raw = strip_leads.ecg_data
+            if isinstance(raw, tuple):
+                strip_df = _numpy_to_dataframe(raw[0], raw[1])
+            elif isinstance(raw, pd.DataFrame):
+                strip_df = raw
+            else:
+                raise ValueError("StripLeadsConfig.ecg_data must be a tuple or DataFrame")
+            if strip_df.shape[1] == 0:
+                raise ValueError("StripLeadsConfig.ecg_data must contain at least one lead (got zero columns)")
+            if strip_df.shape[0] == 0:
+                raise ValueError("StripLeadsConfig.ecg_data must contain at least one sample (got zero rows)")
+            for lead_name in strip_df.columns:
+                strip_rows.append((strip_df[lead_name].values.copy(), [lead_name], [0], []))
+
+            if strip_leads.speed is not None and abs(strip_leads.speed - self.speed) > 1e-9:
+                strip_speed_value = strip_leads.speed
+                strip_tti = strip_leads.speed / (sampling_frequency * MM_PER_INCH)
+
+        if self.show_time_axis:
+            _validate_time_axis_config([row[3] for row in config_rows], strip_speed_value, self.speed)
+
+        all_rows = list(config_rows) + strip_rows
+        n_rows = len(all_rows)
 
         # Ensure row_distance * voltage is a multiple of 5mm
-        # (ceil to the closest multiple of 5mm, rounding slightly first to avoid float precision issues)
         adjusted_row_distance = _adjust_row_distance(self.row_distance, self.voltage)
 
         # Conversion factors and per-call render context
@@ -295,6 +337,7 @@ class ECGPlotter:
         )
 
         # Figure dimensions
+        right_mm = RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM
         width_inches, height_inches = _compute_figure_size(
             n_rows,
             seq_len,
@@ -303,7 +346,9 @@ class ECGPlotter:
             self.voltage,
             adjusted_row_distance,
             print_information=self.print_information,
-            right_margin_mm=RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM,
+            right_margin_mm=right_mm,
+            strip_seq_len=strip_df.shape[0] if strip_df is not None else None,
+            strip_speed=strip_speed_value,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
@@ -323,9 +368,21 @@ class ECGPlotter:
         if self.grid_mode is not None:
             _plot_grid(ax, self.grid_mode, width_inches, height_inches, ctx)
 
-        for i, row in enumerate(rows):
-            row_attention = None if prepared_attention is None else prepared_attention.row_attentions[i]
-            _plot_row(ax, row, ctx, y_offsets[i], attention_values=row_attention, attention_map=prepared_attention)
+        for i, (row_signal, row_leads, row_offsets, _row_segs) in enumerate(all_rows):
+            is_strip = i >= n_config_rows
+            row_attention = None
+            if not is_strip and prepared_attention is not None:
+                row_attention = prepared_attention.row_attentions[i]
+            _plot_row(
+                ax,
+                (row_signal, row_leads),
+                ctx,
+                y_offsets[i],
+                attention_values=row_attention,
+                attention_map=prepared_attention if not is_strip else None,
+                time_to_inches=strip_tti if is_strip else None,
+                segment_offsets=row_offsets,
+            )
 
         first_row_top_inches = y_offsets[0] + ctx.row_distance_inches / 2.0
         last_row_zero_inches = y_offsets[-1]
@@ -378,6 +435,7 @@ class ECGPlotter:
                 last_row_zero_inches,
                 information=information,
                 stats=stats,
+                strip_speed=strip_speed_value,
             )
 
         if show:

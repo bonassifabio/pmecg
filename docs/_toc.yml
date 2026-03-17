@@ -8,6 +8,10 @@ chapters:
         title: Basic Usage
       - file: examples/configurations
         title: Custom Configurations
+      - file: examples/cabrera
+        title: Cabrera Format
+      - file: examples/advanced
+        title: Advanced Configurations
       - file: examples/attention
         title: Attention Map
   - file: api/index

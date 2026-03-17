@@ -9,6 +9,8 @@ import numpy as np
 from matplotlib.collections import Collection
 from matplotlib.patches import Rectangle
 
+from pmecg.types import LeadSegment
+
 from .attention import AbstractAttentionMap
 
 MM_PER_INCH = 25.4
@@ -86,6 +88,11 @@ def _nice_tick_step(total_time_s: float) -> float:
     """Choose a human-friendly tick spacing (in seconds) for a given recording duration.
 
     Targets roughly 10 ticks across the recording.
+
+    Returns
+    -------
+    float
+        Tick spacing in seconds.
     """
     raw_step = total_time_s / 10.0
     # Round to the nearest value in [0.1, 0.2, 0.5, 1, 2, 5, 10, ...]
@@ -132,6 +139,8 @@ def _compute_figure_size(
     row_distance_mv: float,
     print_information: bool = False,
     right_margin_mm: float = RIGHT_MARGIN_MM,
+    strip_seq_len: int | None = None,
+    strip_speed: float | None = None,
 ) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
 
@@ -155,6 +164,13 @@ def _compute_figure_size(
     right_margin_mm : float, optional
         Width of the right margin in millimetres. This is expanded when an
         attention color scale needs to be drawn, by default ``RIGHT_MARGIN_MM``.
+    strip_seq_len : int | None, optional
+        Number of samples in the strip rows (typically the full recording
+        length). When provided, the figure width is expanded if the strip
+        rows are wider than the main config rows. By default ``None``.
+    strip_speed : float | None, optional
+        Paper speed in mm/s for strip rows. When ``None``, ``speed`` is used.
+        Only meaningful when ``strip_seq_len`` is provided. By default ``None``.
 
     Returns
     -------
@@ -164,8 +180,12 @@ def _compute_figure_size(
     # --- Width ---
     # Total recording duration in seconds
     total_time_s = seq_len / sampling_frequency
-    # Convert to mm: duration * speed, then add 1 cm on left and right
+    # Convert to mm: duration * speed, then add left and right margins
     width_mm = total_time_s * speed + LEFT_MARGIN_MM + right_margin_mm
+    if strip_seq_len is not None:
+        effective_strip_speed = strip_speed if strip_speed is not None else speed
+        strip_width_mm = strip_seq_len / sampling_frequency * effective_strip_speed + LEFT_MARGIN_MM + right_margin_mm
+        width_mm = max(width_mm, strip_width_mm)
     width_inches = width_mm / MM_PER_INCH
 
     # --- Height ---
@@ -268,6 +288,8 @@ def _plot_row(
     y_offset: float,
     attention_values: np.ndarray | None = None,
     attention_map: AbstractAttentionMap | None = None,
+    time_to_inches: float | None = None,
+    segment_offsets: list[int] | None = None,
 ) -> None:
     """Plot a single ECG row onto `ax`.
 
@@ -282,20 +304,33 @@ def _plot_row(
     y_offset : float
         Vertical zero-line of this row in figure inches (pre-computed by
         `_compute_row_offsets`).
+    attention_values : np.ndarray | None, optional
+        1-D attention array of length ``len(signal)`` for this row.
+        Must be provided together with ``attention_map``. By default ``None``.
+    attention_map : AbstractAttentionMap | None, optional
+        Prepared attention map used to build the overlay artists.
+        Must be provided together with ``attention_values``. By default ``None``.
+    time_to_inches : float | None, optional
+        Override for the time-to-inches conversion factor. When provided,
+        this is used instead of ``ctx.time_to_inches`` (e.g. for strip
+        leads running at a different paper speed). By default ``None``.
+    segment_offsets : list[int] | None, optional
+        Sample index in the concatenated signal at which each lead starts.
+        Length must equal ``len(leads)``. When provided, lead labels are
+        placed at the true segment boundary rather than at equal divisions.
+        By default ``None`` (even-split assumed, matching classic string-based rows).
     """
+    tti = time_to_inches if time_to_inches is not None else ctx.time_to_inches
     signal, leads = row
     n_samples = len(signal)
     n_leads = len(leads)
 
     # --- x axis ---
-    # Convert sample indices to time (seconds) then to inches via the paper speed.
-    # time_to_inches already encodes both sampling frequency and speed, so a simple
-    # multiplication suffices. Shift right by the left margin (1 cm).
+    # x[i] = sample_index * (speed_mm_s / (fs_hz * mm_per_inch)) + left_margin  [samples → inches]
     left_margin_inches = LEFT_MARGIN_MM / MM_PER_INCH
-    x = np.arange(n_samples) * ctx.time_to_inches + left_margin_inches
+    x = np.arange(n_samples) * tti + left_margin_inches
 
     # --- y axis ---
-    # Scale the signal from mV to inches, then translate to the row's zero-line.
     y = signal * ctx.mv_to_inches + y_offset
     row_half_height_inches = ctx.row_distance_inches / 2.0
 
@@ -322,13 +357,9 @@ def _plot_row(
 
     # --- Labels ---
     if ctx.show_leads_labels:
-        # Each lead occupies an equal segment of the total sample length.
-        # Place each label at the top-left corner of its segment's bounding box.
-        segment_len = n_samples // n_leads
         for i, lead_name in enumerate(leads):
-            # x: left edge of this segment (sample i*segment_len), shifted by the left margin
-            x_label = left_margin_inches + i * segment_len * ctx.time_to_inches
-            # y: top edge of the row's allocated vertical space
+            sample_start = segment_offsets[i] if segment_offsets is not None else i * (n_samples // n_leads)
+            x_label = left_margin_inches + sample_start * tti
             y_label = y_offset + row_half_height_inches
             ax.text(x_label, y_label, lead_name, va="top", ha="left", fontsize=9, fontfamily="monospace")
 
@@ -347,8 +378,9 @@ def _plot_grid(
     ax : matplotlib.axes.Axes
         The axes to draw the grid on. Coordinates are in inches.
     grid_mode : {'cm'}
-        Grid spacing unit. 'cm' draws lines every 0.1 cm (= 1 mm). Every 5th line is
-        slightly thicker to form major squares.
+        Grid spacing unit. ``'cm'`` draws lines every 0.1 cm (= 1 mm); every 5th line
+        is slightly thicker to form major squares. ``'inch'`` is not implemented and
+        will raise :exc:`NotImplementedError`.
     width_inches : float
         Width of the plot area in inches (used to bound vertical grid lines).
     height_inches : float
@@ -441,6 +473,7 @@ def _print_information(
     last_row_zero_inches: float,
     information=None,
     stats=None,
+    strip_speed: float | None = None,
 ) -> None:
     """Annotate the figure with diagnostic parameters and optional patient information.
 
@@ -476,6 +509,9 @@ def _print_information(
     stats : ECGStats, optional
         Computed ECG statistics. Non-None fields are printed top-right in a
         column-major grid (up to 3 rows per column).
+    strip_speed : float | None, optional
+        Paper speed in mm/s for strip rows, printed in the diagnostics line
+        when it differs from the main speed. By default ``None``.
     """
     font = {"fontsize": 7, "fontfamily": "monospace"}
     x_left = LEFT_MARGIN_MM / MM_PER_INCH
@@ -489,10 +525,11 @@ def _print_information(
 
     # --- Bottom-left: diagnostics (single line) ---
     leads_str = " ".join(leads)
+    strip_speed_part = f"   Strip speed: {strip_speed:g} mm/s" if strip_speed is not None else ""
     diag_line = (
-        f"Speed: {ctx.speed:.0f} mm/s   "
-        f"Voltage: {ctx.voltage:.0f} mm/mV   "
-        f"Freq: {sampling_frequency:.0f} Hz   "
+        f"Speed: {ctx.speed:g} mm/s{strip_speed_part}   "
+        f"Voltage: {ctx.voltage:g} mm/mV   "
+        f"Freq: {sampling_frequency:g} Hz   "
         f"Leads: {leads_str}"
     )
     if information is not None and getattr(information, "filter", None):
@@ -561,3 +598,50 @@ def _print_information(
                 x = x_right - (n_cols - col) * col_width
                 y = y_base + (2 - row) * line_height
                 ax.text(x, y, cell, va="bottom", ha="left", zorder=5, **font)
+
+
+def _validate_time_axis_config(
+    all_segments: list[list[LeadSegment]],
+    strip_speed: float | None,
+    main_speed: float,
+) -> None:
+    """Raise ValueError if the layout is incompatible with ``show_time_axis=True``.
+
+    The time axis is only meaningful when every row shares the same time origin,
+    segments within each row are strictly contiguous, and strip leads (if any)
+    run at the same paper speed as the main layout.
+    """
+    if not all_segments:
+        return
+
+    # All rows must begin at the same sample index.
+    first_starts = [segs[0].start for segs in all_segments]
+    if len(set(first_starts)) > 1:
+        rows_info = ", ".join(f"row {i}: sample {s}" for i, s in enumerate(first_starts))
+        raise ValueError(
+            "show_time_axis=True requires all rows to begin at the same sample index, "
+            f"but rows start at different positions ({rows_info}). "
+            "Use a consistent start index across all rows, or set show_time_axis=False."
+        )
+
+    # Within each row, segments must be strictly contiguous (no gaps or overlaps).
+    for row_idx, segs in enumerate(all_segments):
+        for seg_idx in range(1, len(segs)):
+            prev, curr = segs[seg_idx - 1], segs[seg_idx]
+            if curr.start != prev.end:
+                raise ValueError(
+                    f"show_time_axis=True requires segments to be strictly contiguous within "
+                    f"each row (each segment must start exactly where the previous one ends), "
+                    f"but row {row_idx} has a gap or overlap between "
+                    f"lead '{prev.lead}' (end={prev.end}) and "
+                    f"lead '{curr.lead}' (start={curr.start}). "
+                    "Adjust the segment boundaries or set show_time_axis=False."
+                )
+
+    # Strip leads must run at the same speed as the main layout.
+    if strip_speed is not None:
+        raise ValueError(
+            f"show_time_axis=True is not supported when strip_leads uses a different speed "
+            f"({strip_speed:g} mm/s) than the main layout ({main_speed:g} mm/s). "
+            "Set strip_leads.speed to match the plotter speed, or set show_time_axis=False."
+        )

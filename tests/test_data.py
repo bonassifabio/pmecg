@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import warnings
 from contextlib import nullcontext
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from pmecg.types import LeadSegment
 from pmecg.utils.data import (
     SUPPORTED_LEADS,
     LeadsMap,
     _apply_configuration,
+    _build_row_signal,
+    _even_leads_split,
     _numpy_to_dataframe,
     _resolve_configuration,
-    _segment_leads,
     _template_configuration,
+    cabrera_factory,
+    expand_to_12_leads,
     template_factory,
 )
 
@@ -131,7 +136,7 @@ class TestNumpyToDataframeDefaults:
 
 
 # ---------------------------------------------------------------------------
-# _segment_leads
+# _even_leads_split + _build_row_signal
 # ---------------------------------------------------------------------------
 
 SEGMENT_LEAD_GROUPS = [
@@ -145,12 +150,18 @@ SEGMENT_LEAD_GROUPS = [
 ]
 
 
+def _segment_via_new_api(df, selected_leads, disconnect_segments):
+    """Helper: replicate old _segment_leads via the new split + build functions."""
+    configs = _even_leads_split(selected_leads, df.shape[0])
+    return _build_row_signal(df, configs, disconnect_segments=disconnect_segments)
+
+
 @pytest.mark.parametrize("selected_leads", SEGMENT_LEAD_GROUPS)
 @pytest.mark.parametrize("disconnect", [True, False])
 class TestSegmentLeads:
     """Cartesian product: lead groups × disconnect flag."""
 
-    # Checks that segmenting any requested lead group always returns a 1D signal of the original length.
+    # Checks that segmenting any requested lead group returns a 1D signal of n_leads * segment_len samples.
     def test_output_shape(self, selected_leads, disconnect):
         ctx = (
             pytest.warns(UserWarning, match="is not evenly divisible")
@@ -158,8 +169,9 @@ class TestSegmentLeads:
             else nullcontext()
         )
         with ctx:
-            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
-        assert signal.shape == (N_SAMPLES,)
+            signal, _, _ = _segment_via_new_api(_make_12lead_df(), selected_leads, disconnect)
+        expected_len = len(selected_leads) * (N_SAMPLES // len(selected_leads))
+        assert signal.shape == (expected_len,)
 
     # Checks that the function reports back the same lead sequence it was asked to segment.
     def test_returned_leads(self, selected_leads, disconnect):
@@ -169,7 +181,7 @@ class TestSegmentLeads:
             else nullcontext()
         )
         with ctx:
-            _, ret_leads = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+            _, ret_leads, _ = _segment_via_new_api(_make_12lead_df(), selected_leads, disconnect)
         assert ret_leads == selected_leads
 
     # Checks that the interior samples of each segment come from the expected source lead.
@@ -181,7 +193,7 @@ class TestSegmentLeads:
             else nullcontext()
         )
         with ctx:
-            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+            signal, _, _ = _segment_via_new_api(_make_12lead_df(), selected_leads, disconnect)
         seg = N_SAMPLES // len(selected_leads)
         for i, lead in enumerate(selected_leads):
             np.testing.assert_array_equal(signal[i * seg : (i + 1) * seg - 1], LEAD_VALUE[lead])
@@ -195,7 +207,7 @@ class TestSegmentLeads:
             else nullcontext()
         )
         with ctx:
-            signal, _ = _segment_leads(_make_12lead_df(), selected_leads, disconnect_segments=disconnect)
+            signal, _, _ = _segment_via_new_api(_make_12lead_df(), selected_leads, disconnect)
         seg = N_SAMPLES // len(selected_leads)
         for i, lead in enumerate(selected_leads):
             last = (i + 1) * seg - 1
@@ -210,8 +222,8 @@ def test_segment_leads_string_input():
     """A string lead name is treated as a one-element list."""
     df = _make_12lead_df()
     for lead in ["I", "II", "V5"]:
-        sig_str, leads_str = _segment_leads(df, lead, disconnect_segments=False)
-        sig_list, _ = _segment_leads(df, [lead], disconnect_segments=False)
+        sig_str, leads_str, _ = _segment_via_new_api(df, lead, disconnect_segments=False)
+        sig_list, _, _ = _segment_via_new_api(df, [lead], disconnect_segments=False)
         assert leads_str == [lead]
         np.testing.assert_array_equal(sig_str, sig_list)
 
@@ -292,7 +304,7 @@ class TestApplyConfiguration:
             result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
         assert len(result) == len(expected_leads_per_row)
 
-    # Checks that every configured row produces a full-length 1D signal.
+    # Checks that every configured row produces a signal of the expected length.
     def test_signal_shapes(self, config, expected_leads_per_row, disconnect):
         ctx = (
             pytest.warns(UserWarning, match="is not evenly divisible")
@@ -301,8 +313,9 @@ class TestApplyConfiguration:
         )
         with ctx:
             result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
-        for signal, _ in result:
-            assert signal.shape == (N_SAMPLES,)
+        for (signal, _, _offsets, _segs), exp_leads in zip(result, expected_leads_per_row):
+            n = len(exp_leads) if isinstance(exp_leads, list) else 1
+            assert signal.shape == (n * (N_SAMPLES // n),)
 
     # Checks that each configured row keeps the expected lead names in order.
     def test_lead_names(self, config, expected_leads_per_row, disconnect):
@@ -313,7 +326,7 @@ class TestApplyConfiguration:
         )
         with ctx:
             result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
-        for (_, ret_leads), exp in zip(result, expected_leads_per_row):
+        for (_, ret_leads, _offsets, _segs), exp in zip(result, expected_leads_per_row):
             assert ret_leads == (exp if isinstance(exp, list) else [exp])
 
     # Checks that each configured segment pulls interior samples from the correct lead values.
@@ -326,7 +339,7 @@ class TestApplyConfiguration:
         )
         with ctx:
             result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
-        for (signal, _), row_leads in zip(result, expected_leads_per_row):
+        for (signal, _, _offsets, _segs), row_leads in zip(result, expected_leads_per_row):
             leads = row_leads if isinstance(row_leads, list) else [row_leads]
             seg = N_SAMPLES // len(leads)
             for i, lead in enumerate(leads):
@@ -342,7 +355,7 @@ class TestApplyConfiguration:
         )
         with ctx:
             result = _apply_configuration(_make_12lead_df(), config, disconnect_segments=disconnect)
-        for (signal, _), row_leads in zip(result, expected_leads_per_row):
+        for (signal, _, _offsets, _segs), row_leads in zip(result, expected_leads_per_row):
             leads = row_leads if isinstance(row_leads, list) else [row_leads]
             seg = N_SAMPLES // len(leads)
             for i, lead in enumerate(leads):
@@ -364,7 +377,7 @@ class TestApplyConfigurationDefault:
         # Expecting one row per lead
         assert len(result) == len(df.columns)
 
-        for i, (signal, selected_leads) in enumerate(result):
+        for i, (signal, selected_leads, _offsets, _segs) in enumerate(result):
             # Each row should contain exactly one lead
             assert len(selected_leads) == 1
             assert selected_leads[0] == df.columns[i]
@@ -385,7 +398,6 @@ class TestResolveConfiguration:
             ["LI", "aVR-custom", "Chest-1", "Chest-4"],
             ["LII", "aVL-custom", "Chest-2", "Chest-5"],
             ["LIII", "aVF-custom", "Chest-3", "Chest-6"],
-            "LII",
         ]
 
     # Checks that user-defined configurations are accepted when they already use the custom input labels.
@@ -438,5 +450,445 @@ class TestResolveConfiguration:
             ["i", "avr", "v1", "v4"],
             ["ii", "avl", "v2", "v5"],
             ["iii", "avf", "v3", "v6"],
-            "ii",
         ]
+
+
+# ---------------------------------------------------------------------------
+# cabrera_factory
+# ---------------------------------------------------------------------------
+
+
+class TestCabreraFactory:
+    # Checks that 4x3 Cabrera reorders limb leads correctly and keeps the strip.
+    def test_4x3_configuration(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("4x3", df)
+        assert config == [
+            ["AVL", "II", "V1", "V4"],
+            ["I", "AVF", "V2", "V5"],
+            ["-AVR", "III", "V3", "V6"],
+        ]
+
+    # Checks that 2x6 Cabrera reorders limb leads correctly and keeps the strip.
+    def test_2x6_configuration(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("2x6", df)
+        assert config == [
+            ["AVL", "V1"],
+            ["I", "V2"],
+            ["-AVR", "V3"],
+            ["II", "V4"],
+            ["AVF", "V5"],
+            ["III", "V6"],
+        ]
+
+    # Checks that 1x6 Cabrera reorders all limb leads (no strip).
+    def test_1x6_configuration(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("1x6", df)
+        assert config == ["AVL", "I", "-AVR", "II", "AVF", "III"]
+
+    # Checks that 1x12 Cabrera reorders limb leads, keeps precordial order.
+    def test_1x12_configuration(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("1x12", df)
+        assert config == ["AVL", "I", "-AVR", "II", "AVF", "III", "V1", "V2", "V3", "V4", "V5", "V6"]
+
+    # Checks that AVR is replaced by -AVR (negated) in the output DataFrame.
+    def test_neg_avr_column_added_dataframe(self):
+        df = _make_12lead_df()
+        new_data, _ = cabrera_factory("4x3", df)
+        assert isinstance(new_data, pd.DataFrame)
+        assert "-AVR" in new_data.columns
+        assert "AVR" not in new_data.columns
+        np.testing.assert_array_equal(new_data["-AVR"].values, -df["AVR"].values)
+
+    # Checks that the original DataFrame is not mutated.
+    def test_does_not_mutate_original_dataframe(self):
+        df = _make_12lead_df()
+        original_columns = list(df.columns)
+        cabrera_factory("4x3", df)
+        assert list(df.columns) == original_columns
+
+    # Checks that AVR is replaced by -AVR (negated) for tuple (ndarray, names) input.
+    def test_neg_avr_column_added_numpy_tuple(self):
+        arr = _make_ecg_array(list(SUPPORTED_LEADS))
+        ecg_data = (arr, list(SUPPORTED_LEADS))
+        new_data, _ = cabrera_factory("4x3", ecg_data)
+        assert isinstance(new_data, tuple)
+        new_arr, new_names = new_data
+        assert "-AVR" in new_names
+        assert "AVR" not in new_names
+        assert len(new_names) == len(SUPPORTED_LEADS)  # no extra column added
+        avr_idx = list(SUPPORTED_LEADS).index("AVR")
+        np.testing.assert_array_equal(new_arr[:, avr_idx], -arr[:, avr_idx])
+
+    # Checks that AVR is replaced by -AVR (negated) for tuple (list[ndarray], names) input.
+    def test_neg_avr_column_added_list_of_arrays(self):
+        leads = list(SUPPORTED_LEADS)
+        arrays = [np.full(N_SAMPLES, float(i + 1)) for i in range(len(leads))]
+        ecg_data = (arrays, leads)
+        new_data, _ = cabrera_factory("4x3", ecg_data)
+        new_arrays, new_names = new_data
+        assert "-AVR" in new_names
+        assert "AVR" not in new_names
+        assert len(new_names) == len(leads)  # no extra array added
+        avr_idx = leads.index("AVR")
+        np.testing.assert_array_equal(new_arrays[avr_idx], -arrays[avr_idx])
+
+    # Checks that templates missing some limb leads are rejected.
+    def test_rejects_template_without_all_limb_leads(self):
+        df = _make_12lead_df()
+        with pytest.raises(ValueError, match="Cabrera format requires all six limb leads"):
+            cabrera_factory("1x1", df)
+
+    def test_rejects_1x8_template(self):
+        df = _make_12lead_df()
+        with pytest.raises(ValueError, match="Cabrera format requires all six limb leads"):
+            cabrera_factory("1x8", df)
+
+    def test_rejects_2x4_template(self):
+        df = _make_12lead_df()
+        with pytest.raises(ValueError, match="Cabrera format requires all six limb leads"):
+            cabrera_factory("2x4", df)
+
+    # Checks that data without AVR is rejected.
+    def test_rejects_data_without_avr(self):
+        leads = ["I", "II", "III", "X", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+        df = pd.DataFrame(np.ones((N_SAMPLES, 12)), columns=leads)
+        with pytest.raises(ValueError, match="requires 'AVR' lead"):
+            cabrera_factory("1x6", df)
+
+    # Checks that precordial leads (V1-V6) are not affected by the substitution.
+    def test_precordial_leads_unchanged(self):
+        df = _make_12lead_df()
+        _, config = cabrera_factory("4x3", df)
+        # Collect all V leads from config
+        v_leads = []
+        for entry in config:
+            if isinstance(entry, list):
+                v_leads.extend(lead for lead in entry if lead.startswith("V"))
+        assert sorted(v_leads) == ["V1", "V2", "V3", "V4", "V5", "V6"]
+
+    # Checks that returned data can be plotted with ECGPlotter.
+    def test_returned_data_plottable(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("4x3", df)
+        # All leads in config must exist in new_data
+        all_config_leads = set()
+        for entry in config:
+            if isinstance(entry, list):
+                all_config_leads.update(entry)
+            else:
+                all_config_leads.add(entry)
+        assert all_config_leads.issubset(set(new_data.columns))
+
+    # Checks that leads_map is respected: config uses custom column names and -AVR is derived from the mapped AVR.
+    def test_leads_map_resolves_custom_names(self):
+        custom_cols = [
+            "LI",
+            "LII",
+            "LIII",
+            "aVR-custom",
+            "aVL-custom",
+            "aVF-custom",
+            "Chest-1",
+            "Chest-2",
+            "Chest-3",
+            "Chest-4",
+            "Chest-5",
+            "Chest-6",
+        ]
+        df = pd.DataFrame(np.ones((N_SAMPLES, 12)), columns=custom_cols)
+        df["aVR-custom"] = 2.0  # give AVR a distinct value so -AVR is verifiable
+        new_data, config = cabrera_factory("4x3", df, leads_map=CUSTOM_LEADS_MAP)
+        assert config == [
+            ["aVL-custom", "LII", "Chest-1", "Chest-4"],
+            ["LI", "aVF-custom", "Chest-2", "Chest-5"],
+            ["-AVR", "LIII", "Chest-3", "Chest-6"],
+        ]
+        assert isinstance(new_data, pd.DataFrame)
+        assert "-AVR" in new_data.columns
+        assert "aVR-custom" not in new_data.columns
+        np.testing.assert_array_equal(new_data["-AVR"].values, -df["aVR-custom"].values)
+
+
+# ---------------------------------------------------------------------------
+# Advanced configuration (LeadSegment dicts)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRowSignal:
+    # Checks that _build_row_signal produces the expected total length.
+    def test_output_length(self):
+        df = _make_12lead_df()
+        configs = [
+            LeadSegment(lead="I", start=0, end=60),
+            LeadSegment(lead="II", start=0, end=60),
+        ]
+        signal, leads, offsets = _build_row_signal(df, configs, disconnect_segments=False)
+        assert signal.shape == (120,)
+        assert leads == ["I", "II"]
+        assert offsets == [0, 60]
+
+    # Checks that each segment pulls data from the correct lead and range.
+    def test_segment_values(self):
+        df = _make_12lead_df()
+        configs = [
+            LeadSegment(lead="I", start=0, end=40),
+            LeadSegment(lead="V6", start=10, end=50),
+        ]
+        signal, leads, offsets = _build_row_signal(df, configs, disconnect_segments=False)
+        np.testing.assert_array_equal(signal[:40], df["I"].values[0:40])
+        np.testing.assert_array_equal(signal[40:80], df["V6"].values[10:50])
+        assert offsets == [0, 40]
+
+    # Checks that disconnection NaNs are placed at segment boundaries.
+    def test_disconnect_segments(self):
+        df = _make_12lead_df()
+        configs = [
+            LeadSegment(lead="I", start=0, end=60),
+            LeadSegment(lead="II", start=0, end=60),
+        ]
+        signal, _, _ = _build_row_signal(df, configs, disconnect_segments=True)
+        assert np.isnan(signal[59])
+        assert np.isnan(signal[119])
+
+    # Checks that no disconnection NaNs appear when disabled.
+    def test_no_disconnect(self):
+        df = _make_12lead_df()
+        configs = [
+            LeadSegment(lead="I", start=0, end=60),
+            LeadSegment(lead="II", start=0, end=60),
+        ]
+        signal, _, _ = _build_row_signal(df, configs, disconnect_segments=False)
+        assert not np.isnan(signal[59])
+        assert not np.isnan(signal[119])
+
+    # Checks that a single LeadSegment produces a single-lead segment.
+    def test_single_lead_config(self):
+        df = _make_12lead_df()
+        configs = [LeadSegment(lead="III", start=10, end=50)]
+        signal, leads, offsets = _build_row_signal(df, configs, disconnect_segments=False)
+        assert signal.shape == (40,)
+        assert leads == ["III"]
+        assert offsets == [0]
+        np.testing.assert_array_equal(signal, df["III"].values[10:50])
+
+
+class TestApplyConfigurationAdvanced:
+    # Checks that LeadSegment-based rows are applied correctly.
+    def test_lead_segment_rows(self):
+        df = _make_12lead_df()
+        config = [
+            [LeadSegment(lead="I", start=0, end=60), LeadSegment(lead="II", start=0, end=60)],
+            [LeadSegment(lead="III", start=0, end=60), LeadSegment(lead="AVR", start=0, end=60)],
+        ]
+        result = _apply_configuration(df, config, disconnect_segments=False)
+        assert len(result) == 2
+        for signal, _, _, _ in result:
+            assert signal.shape == (120,)
+
+    # Checks that mixing string rows and LeadSegment rows works when sample counts match.
+    def test_mixed_string_and_lead_segment_rows(self):
+        df = _make_12lead_df()
+        config = [
+            [LeadSegment(lead="I", start=0, end=N_SAMPLES)],
+            "II",
+        ]
+        result = _apply_configuration(df, config, disconnect_segments=False)
+        assert len(result) == 2
+        assert result[0][0].shape == (N_SAMPLES,)
+        assert result[1][0].shape == (N_SAMPLES,)
+
+    # Checks that a single LeadSegment entry as a full-width row works.
+    def test_single_lead_segment_entry(self):
+        df = _make_12lead_df()
+        config = [LeadSegment(lead="I", start=0, end=N_SAMPLES)]
+        result = _apply_configuration(df, config, disconnect_segments=False)
+        assert len(result) == 1
+        assert result[0][0].shape == (N_SAMPLES,)
+        np.testing.assert_array_equal(result[0][0], df["I"].values)
+
+    # Checks that mixing strings and LeadSegments within a row is rejected.
+    def test_mixed_types_in_row_rejected(self):
+        df = _make_12lead_df()
+        config = [
+            ["I", LeadSegment(lead="II", start=0, end=60)],
+        ]
+        with pytest.raises(ValueError, match="all entries must be the same type"):
+            _apply_configuration(df, config, disconnect_segments=False)
+
+    # Checks that a LeadSegment with missing 'end' is rejected at construction time.
+    def test_missing_end_rejected(self):
+        with pytest.raises(TypeError):
+            LeadSegment(lead="I", start=0)  # type: ignore[call-arg]
+
+    # Checks that end <= start is rejected at construction time.
+    def test_end_before_start_rejected(self):
+        with pytest.raises(ValueError, match="must be greater than"):
+            LeadSegment(lead="I", start=50, end=30)
+
+    # Checks that negative start is rejected at construction time.
+    def test_negative_start_rejected(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            LeadSegment(lead="I", start=-1, end=50)
+
+    # Checks that an unknown lead name is rejected at configuration resolution time.
+    def test_unknown_lead_rejected(self):
+        df = _make_12lead_df()
+        config = [
+            [LeadSegment(lead="UNKNOWN", start=0, end=60)],
+        ]
+        with pytest.raises(ValueError, match="not present in the input data"):
+            _resolve_configuration(config, list(df.columns))
+
+    # Checks that unequal row lengths trigger a UserWarning.
+    def test_unequal_row_lengths_warns(self):
+        df = _make_12lead_df()
+        config = [
+            [LeadSegment(lead="I", start=0, end=100)],  # 100 samples
+            [LeadSegment(lead="II", start=0, end=80)],  # 80 samples
+        ]
+        with pytest.warns(UserWarning, match="unequal total sample counts"):
+            _apply_configuration(df, config, disconnect_segments=False)
+
+    # Checks that equal row lengths do NOT trigger the unequal-length warning.
+    def test_equal_row_lengths_no_warn(self):
+        df = _make_12lead_df()
+        config = [
+            [LeadSegment(lead="I", start=0, end=100)],
+            [LeadSegment(lead="II", start=0, end=100)],
+        ]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            _apply_configuration(df, config, disconnect_segments=False)
+
+    # Checks that the unequal-length warning is NOT raised for string-only configurations.
+    def test_string_only_config_no_unequal_length_warn(self):
+        df = _make_12lead_df()
+        # 3-lead row (120 samples) + 7-lead row (119 samples) — lengths differ
+        # but only the divisibility warning fires, not the unequal-length one.
+        config = [["I", "II", "III"], ["V1", "V2", "V3", "V4", "V5", "V6", "AVR"]]
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _apply_configuration(df, config, disconnect_segments=False)
+        messages = [str(w.message) for w in caught]
+        assert not any("unequal total sample counts" in m for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# expand_to_12_leads
+# ---------------------------------------------------------------------------
+
+_8_LEAD_NAMES = ["I", "II", "V1", "V2", "V3", "V4", "V5", "V6"]
+
+
+def _make_8lead_df() -> pd.DataFrame:
+    """Create an 8-lead DataFrame with constant per-lead values for easy verification."""
+    rng = np.random.default_rng(0)
+    data = {lead: rng.standard_normal(N_SAMPLES) for lead in _8_LEAD_NAMES}
+    return pd.DataFrame(data)
+
+
+class TestExpandTo12Lead:
+    # Checks that the output has 12 columns in the standard order.
+    def test_output_has_12_leads(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        assert list(result.columns) == list(SUPPORTED_LEADS)
+
+    # Checks that the output has the same number of samples as the input.
+    def test_output_shape(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        assert result.shape == (N_SAMPLES, 12)
+
+    # Checks that leads I and II are preserved unchanged.
+    def test_original_leads_preserved(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_array_equal(result["I"].values, df["I"].values)
+        np.testing.assert_array_equal(result["II"].values, df["II"].values)
+
+    # Checks that precordial leads V1-V6 are preserved unchanged.
+    def test_precordial_leads_preserved(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        for lead in ["V1", "V2", "V3", "V4", "V5", "V6"]:
+            np.testing.assert_array_equal(result[lead].values, df[lead].values)
+
+    # Checks III = II - I.
+    def test_lead_III_formula(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_allclose(result["III"].values, df["II"].values - df["I"].values)
+
+    # Checks AVR = -(I + II) / 2.
+    def test_lead_AVR_formula(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_allclose(result["AVR"].values, -(df["I"].values + df["II"].values) / 2.0)
+
+    # Checks AVL = I - II/2.
+    def test_lead_AVL_formula(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_allclose(result["AVL"].values, df["I"].values - df["II"].values / 2.0)
+
+    # Checks AVF = II - I/2.
+    def test_lead_AVF_formula(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_allclose(result["AVF"].values, df["II"].values - df["I"].values / 2.0)
+
+    # Checks that Einthoven's law holds: I + III = II (i.e. III = II - I).
+    def test_einthoven_law(self):
+        df = _make_8lead_df()
+        result = expand_to_12_leads(df)
+        np.testing.assert_allclose(result["I"].values + result["III"].values, result["II"].values, atol=1e-10)
+
+    # Checks that leads_map correctly resolves custom column names.
+    def test_leads_map_resolves_custom_names(self):
+        custom_leads = ["lead_I", "lead_II", "ch1", "ch2", "ch3", "ch4", "ch5", "ch6"]
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame(rng.standard_normal((N_SAMPLES, 8)), columns=custom_leads)
+        lm = LeadsMap(I="lead_I", II="lead_II", V1="ch1", V2="ch2", V3="ch3", V4="ch4", V5="ch5", V6="ch6")
+        result = expand_to_12_leads(df, leads_map=lm)
+        assert list(result.columns) == list(SUPPORTED_LEADS)
+        np.testing.assert_array_equal(result["I"].values, df["lead_I"].values)
+        np.testing.assert_array_equal(result["II"].values, df["lead_II"].values)
+
+    # Checks that a missing required lead raises ValueError.
+    def test_missing_lead_raises(self):
+        df = _make_8lead_df().drop(columns=["V3"])
+        with pytest.raises(ValueError, match="requires lead 'V3'"):
+            expand_to_12_leads(df)
+
+    # Checks that a numpy tuple input is accepted.
+    def test_numpy_tuple_input(self):
+        arr = np.random.default_rng(2).standard_normal((N_SAMPLES, 8))
+        result = expand_to_12_leads((arr, _8_LEAD_NAMES))
+        assert list(result.columns) == list(SUPPORTED_LEADS)
+        assert result.shape == (N_SAMPLES, 12)
+
+
+# Checks that derived limb leads match the recorded PTB-XL ground-truth leads within floating-point tolerance.
+@pytest.mark.integration
+def test_expand_to_12_leads_matches_ptbxl():
+    """Derived leads III, AVR, AVL, AVF match PTB-XL ground-truth within 1.5e-3 (element-wise)."""
+    from ptbxl_helper import get_ptbxl_record
+
+    record = get_ptbxl_record(1)
+    ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+
+    eight_lead_df = ecg_df.drop(columns=["III", "AVR", "AVL", "AVF"])
+    result = expand_to_12_leads(eight_lead_df)
+
+    for lead in ("III", "AVR", "AVL", "AVF"):
+        np.testing.assert_allclose(
+            result[lead].values,
+            ecg_df[lead].values,
+            atol=1.5e-3,
+            err_msg=f"Derived lead {lead} does not match PTB-XL ground truth",
+        )

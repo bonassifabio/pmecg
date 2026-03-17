@@ -605,7 +605,8 @@ def test_attention_row_segmentation_uses_only_relevant_lead_slice():
 
     attention.prepare(["I", "II"], 4, [["I", "II"]])
 
-    np.testing.assert_allclose(attention.row_attentions[0], np.array([0.025, 0.05, 0.25, 0.5]))
+    # I covers samples [0:2], II covers samples [2:4] (sequential layout)
+    np.testing.assert_allclose(attention.row_attentions[0], np.array([0.025, 0.05, 0.75, 1.0]))
 
 
 @pytest.mark.parametrize("attribute_name", ["dataframe", "row_attentions", "range"])

@@ -19,6 +19,7 @@ from pmecg import (
     BackgroundAttentionMap,
     IntervalAttentionMap,
     LineColorAttentionMap,
+    StripLeadsConfig,
     attention_map_from_time_annotations,
     template_factory,
 )
@@ -27,9 +28,9 @@ from pmecg.plot import ECGInformation, ECGPlotter
 pytestmark = pytest.mark.integration
 
 ECG_ID = 1
-SPEED = 50
+SPEED = 25  # mm/s, consistent with test_ptbxl_artifacts.py
 SAMPLING_FREQUENCY = 500
-CONFIGURATION_NAME = "4x3"
+CONFIGURATION_NAME = "4x3+1"
 OUTPUT_ROOT = Path("example/artifacts/attention")
 
 
@@ -161,6 +162,59 @@ def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory
     try:
         for ext in ("png", "pdf"):
             path = OUTPUT_ROOT / f"manual-{attention_kind}.{ext}"
+            save_if_changed(fig, path, ext)
+            assert path.exists(), f"Expected output file not found: {path}"
+            assert path.stat().st_size > 0, f"Output file is empty: {path}"
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+
+
+STRIP_LEAD = "II"
+STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled strip lead fills the same width
+
+
+@pytest.mark.parametrize(
+    ("attention_variant", "attention_factory"),
+    [
+        ("signed", _make_signed_attention),
+        ("positive", _make_unipolar_attention),
+    ],
+)
+@pytest.mark.parametrize("attention_kind", ["interval", "line-color", "background"])
+def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: str, attention_factory) -> None:
+    """Plot a PTB-XL record with attention and a 2x-long strip lead (II at half speed)."""
+    record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
+    ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+    attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
+
+    ii_signal = record.p_signal[:, list(record.sig_name).index(STRIP_LEAD)]
+    strip_df = pd.DataFrame({STRIP_LEAD: np.concatenate([ii_signal, ii_signal])})
+
+    plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    information = ECGInformation(
+        age=metadata["age"],
+        sex=metadata["sex"],
+        date=metadata["date"],
+        machine_model=f"PTB-XL attention + strip example ({attention_kind}, {attention_variant})",
+    )
+
+    fig = plotter.plot(
+        ecg_df,
+        plot_configuration,
+        sampling_frequency=record.fs,
+        show=False,
+        information=information,
+        stats=stats,
+        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df),
+        strip_leads=StripLeadsConfig(ecg_data=strip_df, speed=STRIP_SPEED),
+    )
+
+    try:
+        for ext in ("png", "pdf"):
+            path = OUTPUT_ROOT / f"{CONFIGURATION_NAME}-strip-{attention_kind}-{attention_variant}.{ext}"
             save_if_changed(fig, path, ext)
             assert path.exists(), f"Expected output file not found: {path}"
             assert path.stat().st_size > 0, f"Output file is empty: {path}"

@@ -84,9 +84,12 @@ named templates. The supported templates are:
 | `'1x6'` | I, II, III, AVR, AVL, AVF |
 | `'1x8'` | I, II, V1, V2, V3, V4, V5, V6 |
 | `'1x12'` | I, II, III, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6 |
-| `'2x4'` | 4 rows with two concurrent leads + rhythm strip (II) |
-| `'2x6'` | 6 rows with two concurrent leads + rhythm strip (II) |
-| `'4x3'` | 3 rows with four concurrent leads + rhythm strip (II) |
+| `'2x4'` | 4 rows with two concurrent leads |
+| `'2x6'` | 6 rows with two concurrent leads |
+| `'4x3'` | 3 rows with four concurrent leads |
+| `'2x4+1'` | 4 rows with two concurrent leads + lead II rhythm strip |
+| `'2x6+1'` | 6 rows with two concurrent leads + lead II rhythm strip |
+| `'4x3+1'` | 3 rows with four concurrent leads + lead II rhythm strip |
 
 Because a template uses canonical lead names (`"I"`, `"II"`, …, `"V6"`) while
 your input DataFrame may use different column names, you must first call

@@ -212,7 +212,7 @@ print(annotation_map_df.describe())
 Pass the DataFrame to any attention map class:
 
 ```{code-cell} python
-annotation_background = pmecg.IntervalAttentionMap(
+annotation_interval = pmecg.IntervalAttentionMap(
     annotation_map_df,
     polarity='positive',   # all values are 0 or positive by construction
     color='tomato',
@@ -223,7 +223,7 @@ fig = plotter.plot(
     ecg_df,
     configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
     sampling_frequency=fs,
-    attention_map=annotation_background,
+    attention_map=annotation_interval,
     show=True,
 )
 ```

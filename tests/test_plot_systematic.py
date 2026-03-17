@@ -15,10 +15,12 @@ import pytest
 
 from pmecg import LeadsMap, template_factory
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
-from pmecg.utils.data import SUPPORTED_TEMPLATES, _template_configuration
+from pmecg.types import LeadSegment, StripLeadsConfig
+from pmecg.utils.data import SUPPORTED_TEMPLATES, _apply_configuration, _template_configuration
 from pmecg.utils.plot import (
     LEFT_MARGIN_MM,
     MM_PER_INCH,
+    RIGHT_MARGIN_MM,
     _adjust_row_distance,
     _compute_figure_size,
     _compute_row_offsets,
@@ -126,9 +128,12 @@ def test_figure_size_matches_layout(ecg_df, configuration, n_rows):
     try:
         adjusted_row_distance = _adjust_row_distance(plotter.row_distance, plotter.voltage)
 
+        with maybe_warns_divisible(configuration, N_SAMPLES):
+            config_rows = _apply_configuration(ecg_df, configuration)
+        exp_seq_len = max(len(row[0]) for row in config_rows) if config_rows else N_SAMPLES
         exp_w, exp_h = _compute_figure_size(
             n_rows,
-            N_SAMPLES,
+            exp_seq_len,
             FS,
             plotter.speed,
             plotter.voltage,
@@ -280,6 +285,40 @@ def test_time_axis_visibility(ecg_df, show_time_axis):
         assert _ax(fig).xaxis.get_visible() == show_time_axis
     finally:
         plt.close(fig)
+
+
+def test_time_axis_raises_on_inconsistent_row_starts(ecg_df):
+    """Rows whose first segments begin at different sample indices must raise."""
+    half = N_SAMPLES // 2
+    config = [
+        [LeadSegment(lead="I", start=0, end=half), LeadSegment(lead="II", start=half, end=N_SAMPLES)],
+        [LeadSegment(lead="V1", start=half, end=N_SAMPLES), LeadSegment(lead="V2", start=0, end=half)],
+    ]
+    plotter = ECGPlotter(show_time_axis=True)
+    with pytest.raises(ValueError, match="same sample index"):
+        plotter.plot(ecg_df, config, sampling_frequency=FS, show=False)
+
+
+def test_time_axis_raises_on_non_contiguous_segments(ecg_df):
+    """A gap between segments within a row must raise."""
+    gap_start = N_SAMPLES // 4
+    gap_end = N_SAMPLES // 2
+    config = [
+        # gap between end=gap_start and start=gap_end
+        [LeadSegment(lead="I", start=0, end=gap_start), LeadSegment(lead="II", start=gap_end, end=N_SAMPLES)],
+    ]
+    plotter = ECGPlotter(show_time_axis=True)
+    with pytest.raises(ValueError, match="contiguous"):
+        plotter.plot(ecg_df, config, sampling_frequency=FS, show=False)
+
+
+def test_time_axis_raises_on_strip_speed_mismatch(ecg_df):
+    """A strip lead running at a different speed must raise."""
+    strip_df = ecg_df[["II"]].copy()
+    strip = StripLeadsConfig(ecg_data=strip_df, speed=12.5)
+    plotter = ECGPlotter(show_time_axis=True, speed=25.0)
+    with pytest.raises(ValueError, match="different speed"):
+        plotter.plot(ecg_df, ["I", "II"], strip_leads=strip, sampling_frequency=FS, show=False)
 
 
 # ── Lead labels ────────────────────────────────────────────────────────────
@@ -792,9 +831,12 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows, speed):
         ("1x6", 6),
         ("1x8", 8),
         ("1x12", 12),
-        ("2x4", 5),  # 4 split rows + 1 rhythm strip
-        ("2x6", 7),  # 6 split rows + 1 rhythm strip
-        ("4x3", 4),  # 3 split rows + 1 rhythm strip
+        ("2x4", 4),
+        ("2x6", 6),
+        ("4x3", 3),
+        ("2x4+1", 5),  # 4 split rows + 1 rhythm strip
+        ("2x6+1", 7),  # 6 split rows + 1 rhythm strip
+        ("4x3+1", 4),  # 3 split rows + 1 rhythm strip
     ],
 )
 # Checks that each named template expands to the expected number of visible ECG rows.
@@ -917,3 +959,234 @@ def test_plot_rejects_template_string_configuration(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False)
     with pytest.raises(ValueError, match="configuration must be a list"):
         plotter.plot(ecg_df, "4x3", sampling_frequency=FS, show=False)
+
+
+# ── Strip leads ────────────────────────────────────────────────────────────
+
+
+# Checks that strip_leads appends additional rows to the figure.
+def test_strip_leads_adds_rows(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    configuration = [["I", "II", "III"]]
+    strip = StripLeadsConfig(ecg_data=ecg_df[["II", "V1"]])
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=strip)
+    try:
+        # 1 config row + 2 strip rows = 3 signal lines
+        assert len(_ax(fig).lines) == 3
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip_leads with default speed produces the same figure width as without.
+def test_strip_leads_default_speed_same_width(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    configuration = ["I"]
+    fig_no_strip = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    fig_strip = plotter.plot(
+        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]])
+    )
+    try:
+        w_no_strip = fig_no_strip.get_size_inches()[0]
+        w_strip = fig_strip.get_size_inches()[0]
+        assert abs(w_no_strip - w_strip) < 1e-6
+        # But height should differ (1 vs 2 rows)
+        h_no_strip = fig_no_strip.get_size_inches()[1]
+        h_strip = fig_strip.get_size_inches()[1]
+        assert h_strip > h_no_strip
+    finally:
+        plt.close(fig_no_strip)
+        plt.close(fig_strip)
+
+
+# Checks that strip_leads with higher speed produces a wider figure.
+def test_strip_leads_higher_speed_wider_figure(ecg_df):
+    plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=False, show_calibration=False)
+    configuration = ["I"]
+    fig_default = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    fig_fast_strip = plotter.plot(
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
+    )
+    try:
+        w_default = fig_default.get_size_inches()[0]
+        w_fast = fig_fast_strip.get_size_inches()[0]
+        assert w_fast > w_default
+    finally:
+        plt.close(fig_default)
+        plt.close(fig_fast_strip)
+
+
+# Checks that strip_leads with lower speed does NOT widen the figure.
+def test_strip_leads_lower_speed_no_wider(ecg_df):
+    plotter = ECGPlotter(speed=50.0, grid_mode=None, print_information=False, show_calibration=False)
+    configuration = ["I"]
+    fig_default = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    fig_slow_strip = plotter.plot(
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
+    )
+    try:
+        w_default = fig_default.get_size_inches()[0]
+        w_slow = fig_slow_strip.get_size_inches()[0]
+        assert abs(w_default - w_slow) < 1e-6
+    finally:
+        plt.close(fig_default)
+        plt.close(fig_slow_strip)
+
+
+# Checks that strip_leads figure width is computed correctly.
+def test_strip_leads_figure_width_exact(ecg_df):
+    main_speed = 25.0
+    strip_speed = 50.0
+    plotter = ECGPlotter(speed=main_speed, grid_mode=None, print_information=False, show_calibration=False)
+    configuration = ["I"]
+    fig = plotter.plot(
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=strip_speed),
+    )
+    try:
+        # Strip is wider: width = strip_seq_len / fs * strip_speed + margins
+        expected_width_mm = N_SAMPLES / FS * strip_speed + LEFT_MARGIN_MM + RIGHT_MARGIN_MM
+        expected_width_inches = expected_width_mm / MM_PER_INCH
+        w = fig.get_size_inches()[0]
+        assert abs(w - expected_width_inches) < 1e-6
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip lead labels appear in the figure.
+def test_strip_leads_labels_shown(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True, show_calibration=False)
+    configuration = ["I"]
+    fig = plotter.plot(
+        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II", "V3"]])
+    )
+    try:
+        texts = _texts(fig)
+        assert "II" in texts
+        assert "V3" in texts
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip speed is printed in diagnostics when print_information=True and speed differs.
+def test_strip_speed_in_diagnostics(ecg_df):
+    plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
+    configuration = ["I"]
+    fig = plotter.plot(
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
+    )
+    try:
+        combined = " ".join(_texts(fig))
+        assert "Strip speed: 50 mm/s" in combined
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip speed is NOT printed when strip speed equals main speed.
+def test_strip_speed_not_printed_when_same(ecg_df):
+    plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
+    configuration = ["I"]
+    fig = plotter.plot(
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
+    )
+    try:
+        combined = " ".join(_texts(fig))
+        assert "Strip speed" not in combined
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip speed is NOT printed when strip speed is None.
+def test_strip_speed_not_printed_when_none(ecg_df):
+    plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
+    configuration = ["I"]
+    fig = plotter.plot(
+        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]])
+    )
+    try:
+        combined = " ".join(_texts(fig))
+        assert "Strip speed" not in combined
+    finally:
+        plt.close(fig)
+
+
+# Checks that a non-positive strip speed raises ValueError.
+def test_strip_leads_invalid_speed_raises(ecg_df):
+    with pytest.raises(ValueError, match="speed"):
+        StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=-1.0)
+
+
+# Checks that strip_leads=None has no effect (backward compat).
+def test_strip_leads_none_no_effect(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    configuration = ["I", "II"]
+    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=None)
+    try:
+        # 2 signal lines, no extra
+        assert len(_ax(fig).lines) == 2
+    finally:
+        plt.close(fig)
+
+
+# Checks that strip leads row count is correct in the figure height.
+def test_strip_leads_row_count_in_height(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    config_rows = ["I"]
+    strip = StripLeadsConfig(ecg_data=ecg_df[["II", "III"]])
+    fig = plotter.plot(ecg_df, config_rows, sampling_frequency=FS, show=False, strip_leads=strip)
+    try:
+        adjusted_rd = _adjust_row_distance(plotter.row_distance, plotter.voltage)
+        _, expected_h = _compute_figure_size(3, N_SAMPLES, FS, plotter.speed, plotter.voltage, adjusted_rd)
+        _, h = fig.get_size_inches()
+        assert abs(h - expected_h) < 1e-6
+    finally:
+        plt.close(fig)
+
+
+# Checks that a strip DataFrame with no columns raises a clear error.
+def test_strip_leads_empty_columns_raises(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    empty_df = ecg_df[[]]  # zero columns
+    with pytest.raises(ValueError, match="zero columns"):
+        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=empty_df))
+
+
+# Checks that a strip DataFrame with no rows raises a clear error.
+def test_strip_leads_empty_rows_raises(ecg_df):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    empty_df = ecg_df[["II"]].iloc[0:0]  # zero rows
+    with pytest.raises(ValueError, match="zero rows"):
+        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=empty_df))
+
+
+# Checks that existing template-based plots with strip_leads=None still produce correct output.
+@pytest.mark.parametrize("template_key", SUPPORTED_TEMPLATES)
+def test_templates_still_work_with_strip_leads_none(ecg_df, template_key):
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    configuration = _make_template_configuration(template_key, ecg_df)
+    with maybe_warns_divisible(configuration, N_SAMPLES):
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=None)
+    try:
+        # Just check it doesn't crash and produces a figure
+        assert fig is not None
+    finally:
+        plt.close(fig)
