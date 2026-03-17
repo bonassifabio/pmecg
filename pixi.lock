@@ -12655,7 +12655,7 @@ packages:
 - pypi: ./
   name: pmecg
   version: 0.3.0
-  sha256: 4287b766fb22f4c5a6eb748f6a94276cadf286b969449d1c3534b127b2c163a7
+  sha256: 1e5493dce28754037e0a219a31fa0efac2ed44fae370776475c0d444a5e2489e
   requires_dist:
   - matplotlib>=3.7
   - numpy>=1.24
