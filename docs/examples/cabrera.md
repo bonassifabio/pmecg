@@ -68,13 +68,8 @@ unchanged.
 ```{admonition} Warning
 :class: warning
 
-If you supply a `leads_map` whose `AVR` entry starts with `'-'`
-(e.g. `LeadsMap(AVR='-aVR')`), `cabrera_factory` treats the column as
-**already negated** and skips the sign flip — only the rename to `'-AVR'`
-is performed. This avoids double-negation when the source data already
-stores −AVR. Make sure your data are actually pre-negated before relying
-on this behaviour; passing a column whose name starts with `'-'` but whose
-values are the un-negated AVR signal will produce an incorrect plot.
+If your `leads_map` maps `AVR` to a name starting with `'-'`
+(e.g. `LeadsMap(AVR='-aVR')`), `cabrera_factory` assumes the column has already been negated and skips the sign flip. If the column is *not* actually pre-negated, the plot will be incorrect.
 ```
 
 ## Approach 2. Manual
