@@ -65,6 +65,18 @@ rows (bare string entries in multi-row templates like `'2x6+1'`) are preserved
 unchanged.
 ```
 
+```{admonition} Warning
+:class: warning
+
+If you supply a `leads_map` whose `AVR` entry starts with `'-'`
+(e.g. `LeadsMap(AVR='-aVR')`), `cabrera_factory` treats the column as
+**already negated** and skips the sign flip — only the rename to `'-AVR'`
+is performed. This avoids double-negation when the source data already
+stores −AVR. Make sure your data are actually pre-negated before relying
+on this behaviour; passing a column whose name starts with `'-'` but whose
+values are the un-negated AVR signal will produce an incorrect plot.
+```
+
 ## Approach 2. Manual
 
 The same can result can be achieved by manually changing the sign of the aVR column, and passing a custom configuration to the `ECGPlotter.plot()`:

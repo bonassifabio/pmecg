@@ -583,6 +583,46 @@ class TestCabreraFactory:
                 all_config_leads.add(entry)
         assert all_config_leads.issubset(set(new_data.columns))
 
+    # Checks that a pre-negated AVR column (name starts with '-') is only renamed, not sign-flipped.
+    def test_pre_negated_avr_dataframe(self):
+        cols = list(SUPPORTED_LEADS)
+        df = pd.DataFrame(np.ones((N_SAMPLES, 12)), columns=cols)
+        df["AVR"] = 2.0
+        df = df.rename(columns={"AVR": "-aVR"})
+        new_data, _ = cabrera_factory("4x3", df, leads_map=LeadsMap(AVR="-aVR"))
+        assert isinstance(new_data, pd.DataFrame)
+        assert "-AVR" in new_data.columns
+        assert "-aVR" not in new_data.columns
+        # Values must be unchanged (no double-negation)
+        np.testing.assert_array_equal(new_data["-AVR"].values, df["-aVR"].values)
+
+    # Checks the same skip-flip behaviour for tuple (ndarray, names) input.
+    def test_pre_negated_avr_numpy_tuple(self):
+        leads = list(SUPPORTED_LEADS)
+        arr = _make_ecg_array(leads)
+        avr_idx = leads.index("AVR")
+        arr[:, avr_idx] = 3.0
+        neg_leads = ["-aVR" if n == "AVR" else n for n in leads]
+        ecg_data = (arr, neg_leads)
+        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(AVR="-aVR"))
+        new_arr, new_names = new_data
+        assert "-AVR" in new_names
+        assert "-aVR" not in new_names
+        np.testing.assert_array_equal(new_arr[:, avr_idx], arr[:, avr_idx])
+
+    # Checks the same skip-flip behaviour for tuple (list[ndarray], names) input.
+    def test_pre_negated_avr_list_of_arrays(self):
+        leads = list(SUPPORTED_LEADS)
+        avr_idx = leads.index("AVR")
+        arrays = [np.full(N_SAMPLES, float(i + 1)) for i in range(len(leads))]
+        neg_leads = ["-aVR" if n == "AVR" else n for n in leads]
+        ecg_data = (arrays, neg_leads)
+        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(AVR="-aVR"))
+        new_arrays, new_names = new_data
+        assert "-AVR" in new_names
+        assert "-aVR" not in new_names
+        np.testing.assert_array_equal(new_arrays[avr_idx], arrays[avr_idx])
+
     # Checks that leads_map is respected: config uses custom column names and -AVR is derived from the mapped AVR.
     def test_leads_map_resolves_custom_names(self):
         custom_cols = [

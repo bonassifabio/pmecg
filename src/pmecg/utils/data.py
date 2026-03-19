@@ -389,13 +389,20 @@ def cabrera_factory(
         …) to the corresponding column names in ``ecg_data``. Pass ``None``
         when the input already uses canonical names. By default ``None``.
 
+        If the custom column name mapped to ``AVR`` starts with ``'-'``
+        (e.g. ``LeadsMap(AVR='-aVR')`` or ``LeadsMap(AVR='-AVR')``), the
+        data are assumed to be already negated and the sign flip is skipped;
+        only the rename to ``'-AVR'`` is performed.
+
     Returns
     -------
     tuple[ECGDataType, ConfigurationDataType]
         A pair of ``(modified_ecg_data, cabrera_configuration)`` where:
 
         - ``modified_ecg_data`` is a copy of the input where the ``'AVR'``
-          column (or lead) has been renamed to ``'-AVR'`` and its sign flipped.
+          column (or lead) has been renamed to ``'-AVR'``. The sign is
+          flipped unless the source column name already starts with ``'-'``,
+          in which case the data are treated as pre-negated.
         - ``cabrera_configuration`` is the layout configuration with limb
           leads reordered into Cabrera sequence, using the same column names
           as the returned ``modified_ecg_data``. Rhythm-strip rows (string
@@ -431,11 +438,13 @@ def cabrera_factory(
     if avr_col not in input_leads:
         raise ValueError("Cabrera format requires 'AVR' lead in the input data")
 
-    # Replace AVR with -AVR in-place (rename + flip sign)
+    # Replace AVR with -AVR (rename + flip sign, unless already negated)
+    already_negated = avr_col.startswith("-")
     if isinstance(ecg_data, pd.DataFrame):
         new_data: ECGDataType = ecg_data.copy()
         new_data = new_data.rename(columns={avr_col: "-AVR"})
-        new_data["-AVR"] = -new_data["-AVR"]
+        if not already_negated:
+            new_data["-AVR"] = -new_data["-AVR"]
     else:
         array, names = ecg_data
         avr_idx = [str(n) for n in names].index(avr_col)
@@ -443,10 +452,12 @@ def cabrera_factory(
         new_names[avr_idx] = "-AVR"
         if isinstance(array, np.ndarray):
             new_array: np.ndarray | list[np.ndarray] = array.copy()
-            new_array[:, avr_idx] = -new_array[:, avr_idx]
+            if not already_negated:
+                new_array[:, avr_idx] = -new_array[:, avr_idx]
         else:
             new_array = list(array)
-            new_array[avr_idx] = -new_array[avr_idx]
+            if not already_negated:
+                new_array[avr_idx] = -new_array[avr_idx]
         new_data = (new_array, new_names)
 
     # Determine if the template has mixed row types (lists + strings = has rhythm strips)
