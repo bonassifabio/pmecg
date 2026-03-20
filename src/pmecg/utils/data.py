@@ -565,7 +565,7 @@ def expand_to_12_leads(
 ) -> pd.DataFrame:
     """Derive the four missing limb leads and return a full 12-lead ECG DataFrame.
 
-    Given an 8-lead ECG containing leads I, II, V1–V6, this function computes
+    Given an ECG containing at least leads I, II, V1–V6, this function computes
     the four remaining limb leads using Einthoven's law:
 
     .. math::
@@ -578,7 +578,8 @@ def expand_to_12_leads(
     Parameters
     ----------
     ecg_data : ECGDataType
-        8-lead ECG input. Must contain leads I, II, V1–V6 (eight leads total).
+        ECG input. Must contain at least leads I, II, V1–V6; additional leads
+        or columns are allowed and will be preserved unchanged.
         When the input uses non-canonical column names, supply ``leads_map`` to
         map them to canonical names.
     leads_map : LeadsMap | None, optional

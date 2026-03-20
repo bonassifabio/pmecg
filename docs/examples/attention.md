@@ -30,6 +30,9 @@ record = wfdb.rdrecord('00001_hr', pn_dir='ptb-xl/1.0.3/records500/00000/')
 ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 fs = record.fs
 
+# PTB-XL uses uppercase AVR/AVL/AVF; map them to canonical names (aVR/aVL/aVF).
+leads_map = pmecg.LeadsMap(aVR='AVR', aVL='AVL', aVF='AVF')
+
 n_samples = len(ecg_df)
 ```
 
@@ -81,7 +84,7 @@ interval_map = pmecg.IntervalAttentionMap(
 plotter = pmecg.ECGPlotter(grid_mode='cm')
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=interval_map,
     show=True,
@@ -108,7 +111,7 @@ background_map = pmecg.BackgroundAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=background_map,
     show=True,
@@ -134,7 +137,7 @@ line_map = pmecg.LineColorAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=line_map,
     show=True,
@@ -167,7 +170,7 @@ interval_map_positive = pmecg.IntervalAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=interval_map_positive,
     show=True,
@@ -221,7 +224,7 @@ annotation_interval = pmecg.IntervalAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=annotation_interval,
     show=True,
@@ -287,7 +290,7 @@ interval_map_with_rhythm_strip = pmecg.IntervalAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=interval_map_with_rhythm_strip,
     rhythm_strips=pmecg.RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=plotter.speed / 2),

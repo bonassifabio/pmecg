@@ -429,8 +429,12 @@ class ECGPlotter:
         left_margin_inches = LEFT_MARGIN_MM / MM_PER_INCH
 
         if self.show_time_axis:
+            # When rhythm strips run at the same speed, the figure may be wider than seq_len alone.
+            axis_seq_len = seq_len
+            if rhythm_strip_df is not None and rhythm_strip_speed is None:
+                axis_seq_len = max(seq_len, rhythm_strip_df.shape[0])
             # Choose a sensible tick spacing (0.2 s, rounded to a nice step)
-            total_time_s = seq_len / sampling_frequency
+            total_time_s = axis_seq_len / sampling_frequency
             tick_step_s = _nice_tick_step(total_time_s)
             tick_times_s = np.arange(0, total_time_s + tick_step_s / 2, tick_step_s)
 
