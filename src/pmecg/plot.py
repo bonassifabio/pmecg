@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from typing import Never
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -294,7 +297,7 @@ class ECGPlotter:
         seq_len = max(len(row[0]) for row in config_rows) if config_rows else df_data.shape[0]
 
         # --- Rhythm strips ---
-        rhythm_strip_rows: list[tuple[np.ndarray, list[str], list[int], list]] = []
+        rhythm_strip_rows: list[tuple[np.ndarray, list[str], list[int], list[Never]]] = []
         rhythm_strip_speed: float | None = None
         rhythm_strip_tti: float | None = None  # time_to_inches for rhythm strip rows
 

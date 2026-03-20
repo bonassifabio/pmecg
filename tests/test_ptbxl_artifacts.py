@@ -15,10 +15,10 @@ from output_helpers import save_if_changed
 from ptbxl_helper import get_ptbxl_data
 
 from pmecg import LeadsMap, RhythmStripsConfig, template_factory
+from pmecg.plot import ECGInformation, ECGPlotter
 
 # PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
 _PTBXL_LEADS_MAP = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
-from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
 

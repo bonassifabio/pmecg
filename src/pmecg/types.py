@@ -2,7 +2,7 @@
 
 Import these in annotations to describe input/output shapes clearly::
 
-    from pmecg.types import ECGDataType, ConfigurationDataType, LeadSegment, StripLeadsConfig, AttentionDataType
+    from pmecg.types import ECGDataType, ConfigurationDataType, LeadSegment, RhythmStripsConfig, AttentionDataType
 """
 
 from __future__ import annotations

@@ -24,10 +24,10 @@ from pmecg import (
     attention_map_from_time_annotations,
     template_factory,
 )
+from pmecg.plot import ECGInformation, ECGPlotter
 
 # PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
 _PTBXL_LEADS_MAP = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
-from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
 

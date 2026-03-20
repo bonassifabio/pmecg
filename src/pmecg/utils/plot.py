@@ -71,6 +71,8 @@ class _RenderContext:
         Whether to draw the 1 mV calibration pulse in the left margin of each row.
     show_leads_labels : bool
         Whether to print lead names onto the plot.
+    show_separators : bool
+        Whether to draw vertical separator lines between concatenated leads within a row.
     """
 
     mv_to_inches: float

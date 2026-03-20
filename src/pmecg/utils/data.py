@@ -402,7 +402,7 @@ def template_factory(template: str, ecg_data: ECGDataType, leads_map: LeadsMap |
         names) that will later be passed to :meth:`~pmecg.ECGPlotter.plot`.
     leads_map : LeadsMap | None
         Optional mapping from conventional template lead names (``I``, ``II``,
-        ``AVR``, ``V1``, …) to the corresponding column names in ``ecg_data``.
+        ``aVR``, ``aVL``, ``aVF``, ``V1``, …) to the corresponding column names in ``ecg_data``.
         Pass ``None`` when the input already uses the canonical names.
 
     Returns
