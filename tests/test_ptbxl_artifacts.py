@@ -14,7 +14,10 @@ import pytest
 from output_helpers import save_if_changed
 from ptbxl_helper import get_ptbxl_data
 
-from pmecg import RhythmStripsConfig, template_factory
+from pmecg import LeadsMap, RhythmStripsConfig, template_factory
+
+# PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
+_PTBXL_LEADS_MAP = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
 from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
@@ -43,7 +46,7 @@ def test_ptbxl_plot_saved(ecg_id, configuration):
     os.makedirs(out_dir, exist_ok=True)
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(configuration, df, leads_map=None)
+    plot_configuration = template_factory(configuration, df, leads_map=_PTBXL_LEADS_MAP)
     fig = plotter.plot(
         df,
         plot_configuration,
@@ -83,7 +86,7 @@ def test_ptbxl_rhythm_strip_plot_saved(ecg_id):
     ii_signal = record.p_signal[:, list(record.sig_name).index(RHYTHM_STRIP_LEAD)]
     rhythm_strip_df = pd.DataFrame({RHYTHM_STRIP_LEAD: np.concatenate([ii_signal, ii_signal])})
 
-    plot_configuration = template_factory("4x3", df, leads_map=None)
+    plot_configuration = template_factory("4x3", df, leads_map=_PTBXL_LEADS_MAP)
 
     info = ECGInformation(
         age=metadata["age"],

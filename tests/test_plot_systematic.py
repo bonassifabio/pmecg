@@ -28,14 +28,14 @@ from pmecg.utils.plot import (
 
 # ── Shared test data ───────────────────────────────────────────────────────
 
-LEAD_NAMES = ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+LEAD_NAMES = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
 CUSTOM_LEADS_MAP = LeadsMap(
     I="LI",
     II="LII",
     III="LIII",
-    AVR="aVR-custom",
-    AVL="aVL-custom",
-    AVF="aVF-custom",
+    aVR="aVR-custom",
+    aVL="aVL-custom",
+    aVF="aVF-custom",
     V1="Chest-1",
     V2="Chest-2",
     V3="Chest-3",
@@ -115,7 +115,7 @@ def _make_template_configuration(template_key: str, ecg_data, leads_map: LeadsMa
     [
         (["I"], 1),
         (["I", "II", "III"], 3),
-        ([["I", "II", "III", "AVR", "AVL", "AVF"], ["V1", "V2", "V3", "V4", "V5", "V6"]], 2),
+        ([["I", "II", "III", "aVR", "aVL", "aVF"], ["V1", "V2", "V3", "V4", "V5", "V6"]], 2),
         (None, 12),
     ],
 )
@@ -431,7 +431,7 @@ def test_template_labels_use_custom_names(custom_ecg_df):
         texts = _texts(fig)
         for lead in ["LI", "aVR-custom", "Chest-1", "Chest-4", "LII", "Chest-6"]:
             assert lead in texts
-        for conventional in ["I", "AVR", "V1", "V4", "II", "V6"]:
+        for conventional in ["I", "aVR", "V1", "V4", "II", "V6"]:
             assert conventional not in texts
     finally:
         plt.close(fig)
@@ -502,7 +502,7 @@ def test_custom_configuration_with_custom_names(custom_ecg_df):
 # Checks that conventional lead names are rejected when a custom-labeled DataFrame is plotted directly.
 def test_custom_configuration_with_canonical_names_raises(custom_ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True)
-    configuration = [["I", "AVR", "V1"], "V6"]
+    configuration = [["I", "aVR", "V1"], "V6"]
     with pytest.raises(ValueError, match="Lead name 'I' in configuration is not present"):
         plotter.plot(
             custom_ecg_df,
@@ -514,8 +514,8 @@ def test_custom_configuration_with_canonical_names_raises(custom_ecg_df):
 
 # Checks that template generation fails when the custom lead map omits a required conventional lead.
 def test_template_missing_mapping_raises(custom_ecg_df):
-    partial_map = CUSTOM_LEADS_MAP._replace(AVR=None)
-    with pytest.raises(ValueError, match="Template '4x3' requires conventional lead 'AVR'"):
+    partial_map = CUSTOM_LEADS_MAP._replace(aVR=None)
+    with pytest.raises(ValueError, match="Template '4x3' requires conventional lead 'aVR'"):
         _make_template_configuration("4x3", custom_ecg_df, partial_map)
 
 
@@ -793,7 +793,7 @@ def test_partial_ecginformation(ecg_df, information, present_strings, absent_str
     [
         (["I"], 1),
         (["I", "II", "III"], 3),
-        ([["I", "II"], ["III", "AVR"]], 2),
+        ([["I", "II"], ["III", "aVR"]], 2),
     ],
 )
 # Checks that the plotted waveform width matches the recording duration converted by paper speed.
@@ -888,7 +888,7 @@ def test_template_all_lead_labels(ecg_df, template_key):
         ["I", "II", "III"],
         [["I", "V1"], ["II", "V2"]],
         # User's example: split rows + repeated lead "II" as a rhythm strip
-        [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
+        [["I", "V1"], ["II", "V2"], ["III", "V3"], ["aVR", "V4"], ["aVL", "V5"], ["aVF", "V6"], "II"],
         _template_configuration("4x3"),
     ],
 )

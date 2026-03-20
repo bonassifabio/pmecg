@@ -79,8 +79,8 @@ Example (string-based)::
 
     config = [
         ["I", "II", "III"],  # Leads I, II, III in the first row
-        "AVR",                # Lead AVR in the second row
-        ["AVL", "AVF"],       # Leads AVL and AVF in the third row
+        "aVR",                # Lead aVR in the second row
+        ["aVL", "aVF"],       # Leads aVL and aVF in the third row
     ]
 
 Example (segment-based)::

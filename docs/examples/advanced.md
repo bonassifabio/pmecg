@@ -85,6 +85,8 @@ import pmecg
 
 record = wfdb.rdrecord('00001_hr', pn_dir='ptb-xl/1.0.3/records500/00000/')
 ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+# PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; rename to canonical names
+ecg_df = ecg_df.rename(columns={"AVR": "aVR", "AVL": "aVL", "AVF": "aVF"})
 fs = record.fs
 ```
 
@@ -104,7 +106,7 @@ row1 = [
 
 # Row 2 — 3 leads, different split (2 s | 4 s | 4 s)
 row2 = [
-    LeadSegment(lead='AVR', start=0,    end=1000),   # 2.0 s
+    LeadSegment(lead='aVR', start=0,    end=1000),   # 2.0 s
     LeadSegment(lead='V2',  start=1000, end=3000),   # 4.0 s
     LeadSegment(lead='V5',  start=3000, end=N),      # 4.0 s
 ]
@@ -112,13 +114,13 @@ row2 = [
 # Row 3 — 3 leads, yet another split (4 s | 2 s | 4 s)
 row3 = [
     LeadSegment(lead='III', start=0,    end=2000),   # 4.0 s
-    LeadSegment(lead='AVL', start=2000, end=3000),   # 2.0 s
+    LeadSegment(lead='aVL', start=2000, end=3000),   # 2.0 s
     LeadSegment(lead='V3',  start=3000, end=N),      # 4.0 s
 ]
 
 # Row 4 — only 2 leads (6 s | 4 s)
 row4 = [
-    LeadSegment(lead='AVF', start=0,    end=3000),   # 6.0 s
+    LeadSegment(lead='aVF', start=0,    end=3000),   # 6.0 s
     LeadSegment(lead='V6',  start=3000, end=N),      # 4.0 s
 ]
 
@@ -185,15 +187,15 @@ main_config = [
         LeadSegment(lead='V3',  start=0, end=half),
     ],
     [
-        LeadSegment(lead='AVR', start=0, end=half),
+        LeadSegment(lead='aVR', start=0, end=half),
         LeadSegment(lead='V4',  start=0, end=half),
     ],
     [
-        LeadSegment(lead='AVL', start=0, end=half),
+        LeadSegment(lead='aVL', start=0, end=half),
         LeadSegment(lead='V5',  start=0, end=half),
     ],
     [
-        LeadSegment(lead='AVF', start=0, end=half),
+        LeadSegment(lead='aVF', start=0, end=half),
         LeadSegment(lead='V6',  start=0, end=half),
     ],
 ]

@@ -18,11 +18,15 @@ import pmecg
 from pmecg import (
     BackgroundAttentionMap,
     IntervalAttentionMap,
+    LeadsMap,
     LineColorAttentionMap,
     RhythmStripsConfig,
     attention_map_from_time_annotations,
     template_factory,
 )
+
+# PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
+_PTBXL_LEADS_MAP = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
 from pmecg.plot import ECGInformation, ECGPlotter
 
 pytestmark = pytest.mark.integration
@@ -94,7 +98,7 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
     attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
     information = ECGInformation(
         age=metadata["age"],
         sex=metadata["sex"],
@@ -149,7 +153,7 @@ def test_manual_annotation_rhythm_strip(attention_kind: str, attention_map_facto
     )
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
     information = ECGInformation(
         age=metadata["age"],
         sex=metadata["sex"],
@@ -203,7 +207,7 @@ def test_attention_map_with_rhythm_strip(attention_kind: str, attention_variant:
     rhythm_strip_attention_df = attention_factory(len(rhythm_strip_signal), [RHYTHM_STRIP_LEAD])
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
     information = ECGInformation(
         age=metadata["age"],
         sex=metadata["sex"],

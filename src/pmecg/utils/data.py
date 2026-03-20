@@ -10,7 +10,7 @@ import pandas as pd
 
 from pmecg.types import ConfigurationDataType, ECGDataType, LeadSegment
 
-SUPPORTED_LEADS = ("I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6")
+SUPPORTED_LEADS = ("I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6")
 SUPPORTED_TEMPLATES = (
     "1x1",
     "1x2",
@@ -31,20 +31,20 @@ SUPPORTED_TEMPLATES = (
 )
 
 # Cabrera limb leads: the order in which the 6 limb leads appear in Cabrera format.
-_CABRERA_LIMB_ORDER = ("AVL", "I", "-AVR", "II", "AVF", "III")
+_CABRERA_LIMB_ORDER = ("aVL", "I", "-aVR", "II", "aVF", "III")
 
 # Maps each standard limb lead name (as it appears in a built-in template)
 # to the Cabrera-format lead name that should replace it.
 _CABRERA_SUBSTITUTION: dict[str, str] = {
-    "I": "AVL",
+    "I": "aVL",
     "II": "I",
-    "III": "-AVR",
-    "AVR": "II",
-    "AVL": "AVF",
-    "AVF": "III",
+    "III": "-aVR",
+    "aVR": "II",
+    "aVL": "aVF",
+    "aVF": "III",
 }
 
-_CABRERA_LIMB_LEADS = frozenset(("I", "II", "III", "AVR", "AVL", "AVF"))
+_CABRERA_LIMB_LEADS = frozenset(("I", "II", "III", "aVR", "aVL", "aVF"))
 _CONFIGURATION_ENTRY_ERROR = (
     "configuration list must contain either strings (lead names), sub-lists of strings (lead names for each row), "
     "LeadSegment objects, or sub-lists of LeadSegment objects; "
@@ -52,25 +52,15 @@ _CONFIGURATION_ENTRY_ERROR = (
 )
 
 
-class LeadsMap(NamedTuple):
-    """Optional mapping from canonical leads to input lead names.
-
-    All 12 fields default to ``None``; only the leads that differ from their
-    canonical names need to be specified.  For example, if the input ECG data
-    uses ``"LI"`` for lead I and ``"-aVR"`` for lead AVR::
-
-        LeadsMap(I="LI", AVR="-aVR")
-
-    This allows the built-in templates to be resolved correctly even when the
-    input data uses non-canonical lead names.
-    """
+class _LeadsMapBase(NamedTuple):
+    """Internal NamedTuple backing :class:`LeadsMap`. Use :class:`LeadsMap` directly."""
 
     I: str | None = None  # noqa: E741
     II: str | None = None
     III: str | None = None
-    AVR: str | None = None
-    AVL: str | None = None
-    AVF: str | None = None
+    aVR: str | None = None
+    aVL: str | None = None
+    aVF: str | None = None
     V1: str | None = None
     V2: str | None = None
     V3: str | None = None
@@ -79,23 +69,87 @@ class LeadsMap(NamedTuple):
     V6: str | None = None
 
 
+class LeadsMap(_LeadsMapBase):
+    """Optional mapping from canonical leads to input lead names.
+
+    All 12 fields default to ``None``; only the leads that differ from their
+    canonical names need to be specified.  For example, if the input ECG data
+    uses ``"LI"`` for lead I and ``"-aVR"`` for lead aVR::
+
+        LeadsMap(I="LI", aVR="-aVR")
+
+    This allows the built-in templates to be resolved correctly even when the
+    input data uses non-canonical lead names.
+
+    .. deprecated::
+        Keyword arguments ``AVR``, ``AVL``, ``AVF`` (uppercase) are accepted
+        for backward compatibility but will be removed in a future release.
+        Use ``aVR``, ``aVL``, ``aVF`` instead.
+    """
+
+    def __new__(
+        cls,
+        I: str | None = None,  # noqa: E741
+        II: str | None = None,
+        III: str | None = None,
+        aVR: str | None = None,
+        aVL: str | None = None,
+        aVF: str | None = None,
+        V1: str | None = None,
+        V2: str | None = None,
+        V3: str | None = None,
+        V4: str | None = None,
+        V5: str | None = None,
+        V6: str | None = None,
+        *,
+        AVR: str | None = None,
+        AVL: str | None = None,
+        AVF: str | None = None,
+    ) -> LeadsMap:
+        if AVR is not None:
+            warnings.warn(
+                "LeadsMap(AVR=...) is deprecated; use LeadsMap(aVR=...) instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if aVR is None:
+                aVR = AVR
+        if AVL is not None:
+            warnings.warn(
+                "LeadsMap(AVL=...) is deprecated; use LeadsMap(aVL=...) instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if aVL is None:
+                aVL = AVL
+        if AVF is not None:
+            warnings.warn(
+                "LeadsMap(AVF=...) is deprecated; use LeadsMap(aVF=...) instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if aVF is None:
+                aVF = AVF
+        return _LeadsMapBase.__new__(cls, I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6)
+
+
 _TEMPLATE_CONFIGURATIONS: dict[str, ConfigurationDataType] = {
     "1x1": ["I"],
     "1x2": ["I", "II"],
     "1x3": ["I", "II", "V2"],
     "1x4": ["I", "II", "III", "V2"],
-    "1x6": ["I", "II", "III", "AVR", "AVL", "AVF"],
+    "1x6": ["I", "II", "III", "aVR", "aVL", "aVF"],
     "1x8": ["I", "II", "V1", "V2", "V3", "V4", "V5", "V6"],
-    "1x12": ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
-    "2x4": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"]],
-    "2x4+1": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"], "II"],
-    "2x6": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"]],
-    "2x6+1": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
-    "4x3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
-    "4x3+1": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II"],
-    "2x4+3": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"], "II", "V1", "V5"],
-    "2x6+3": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II", "V1", "V5"],
-    "4x3+3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II", "V1", "V5"],
+    "1x12": ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+    "2x4": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["aVR", "V6"]],
+    "2x4+1": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["aVR", "V6"], "II"],
+    "2x6": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["aVR", "V4"], ["aVL", "V5"], ["aVF", "V6"]],
+    "2x6+1": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["aVR", "V4"], ["aVL", "V5"], ["aVF", "V6"], "II"],
+    "4x3": [["I", "aVR", "V1", "V4"], ["II", "aVL", "V2", "V5"], ["III", "aVF", "V3", "V6"]],
+    "4x3+1": [["I", "aVR", "V1", "V4"], ["II", "aVL", "V2", "V5"], ["III", "aVF", "V3", "V6"], "II"],
+    "2x4+3": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["aVR", "V6"], "II", "V1", "V5"],
+    "2x6+3": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["aVR", "V4"], ["aVL", "V5"], ["aVF", "V6"], "II", "V1", "V5"],
+    "4x3+3": [["I", "aVR", "V1", "V4"], ["II", "aVL", "V2", "V5"], ["III", "aVF", "V3", "V6"], "II", "V1", "V5"],
 }
 
 
@@ -185,7 +239,7 @@ def _validate_and_resolve_leads_map(
     ----------
     leads_map : LeadsMap | None
         Optional mapping whose keys are conventional ECG lead names (``I``, ``II``,
-        ``AVR``, ``V1``, ...) and whose values are the corresponding column names
+        ``aVR``, ``V1``, ...) and whose values are the corresponding column names
         present in the caller's input data.
     input_leads : Sequence[str]
         Lead names available in the provided ECG input.
@@ -391,9 +445,9 @@ def cabrera_factory(
 ) -> tuple[ECGDataType, ConfigurationDataType]:
     """Build Cabrera-ordered ECG data and plotting configuration from a template.
 
-    Cabrera format reorders the six limb leads as AVL, I, -AVR, II, AVF, III
-    (instead of the standard I, II, III, AVR, AVL, AVF) and creates a new
-    ``-AVR`` lead (negated AVR).
+    Cabrera format reorders the six limb leads as aVL, I, -aVR, II, aVF, III
+    (instead of the standard I, II, III, aVR, aVL, aVF) and creates a new
+    ``-aVR`` lead (negated aVR).
 
     Parameters
     ----------
@@ -405,22 +459,22 @@ def cabrera_factory(
         ECG input. Must include all six limb leads. When the input uses
         non-canonical column names, provide ``leads_map`` to map them.
     leads_map : LeadsMap | None, optional
-        Optional mapping from canonical lead names (``I``, ``II``, ``AVR``,
+        Optional mapping from canonical lead names (``I``, ``II``, ``aVR``,
         …) to the corresponding column names in ``ecg_data``. Pass ``None``
         when the input already uses canonical names. By default ``None``.
 
-        If the custom column name mapped to ``AVR`` starts with ``'-'``
-        (e.g. ``LeadsMap(AVR='-aVR')`` or ``LeadsMap(AVR='-AVR')``), the
+        If the custom column name mapped to ``aVR`` starts with ``'-'``
+        (e.g. ``LeadsMap(aVR='-aVR')`` or ``LeadsMap(aVR='-AVR')``), the
         data are assumed to be already negated and the sign flip is skipped;
-        only the rename to ``'-AVR'`` is performed.
+        only the rename to ``'-aVR'`` is performed.
 
     Returns
     -------
     tuple[ECGDataType, ConfigurationDataType]
         A pair of ``(modified_ecg_data, cabrera_configuration)`` where:
 
-        - ``modified_ecg_data`` is a copy of the input where the ``'AVR'``
-          column (or lead) has been renamed to ``'-AVR'``. The sign is
+        - ``modified_ecg_data`` is a copy of the input where the ``'aVR'``
+          column (or lead) has been renamed to ``'-aVR'``. The sign is
           flipped unless the source column name already starts with ``'-'``,
           in which case the data are treated as pre-negated.
         - ``cabrera_configuration`` is the layout configuration with limb
@@ -433,7 +487,7 @@ def cabrera_factory(
     ------
     ValueError
         If the template does not reference all six limb leads, or if the
-        ``'AVR'`` lead is missing from the input data.
+        ``'aVR'`` lead is missing from the input data.
     """
     # Validate template and check it uses all 6 limb leads
     config = _template_configuration(template)
@@ -451,25 +505,25 @@ def cabrera_factory(
             f"Template '{template}' is missing: {', '.join(sorted(missing_limb))}"
         )
 
-    # Resolve leads_map and find the actual column name for AVR
+    # Resolve leads_map and find the actual column name for aVR
     input_leads = _extract_input_leads(ecg_data)
     canonical_to_custom = _validate_and_resolve_leads_map(leads_map, input_leads)
-    avr_col = canonical_to_custom.get("AVR", "AVR")
+    avr_col = canonical_to_custom.get("aVR", "aVR")
     if avr_col not in input_leads:
-        raise ValueError("Cabrera format requires 'AVR' lead in the input data")
+        raise ValueError("Cabrera format requires 'aVR' lead in the input data")
 
-    # Replace AVR with -AVR (rename + flip sign, unless already negated)
+    # Replace aVR with -aVR (rename + flip sign, unless already negated)
     already_negated = avr_col.startswith("-")
     if isinstance(ecg_data, pd.DataFrame):
         new_data: ECGDataType = ecg_data.copy()
-        new_data = new_data.rename(columns={avr_col: "-AVR"})
+        new_data = new_data.rename(columns={avr_col: "-aVR"})
         if not already_negated:
-            new_data["-AVR"] = -new_data["-AVR"]
+            new_data["-aVR"] = -new_data["-aVR"]
     else:
         array, names = ecg_data
         avr_idx = [str(n) for n in names].index(avr_col)
         new_names = list(names)
-        new_names[avr_idx] = "-AVR"
+        new_names[avr_idx] = "-aVR"
         if isinstance(array, np.ndarray):
             new_array: np.ndarray | list[np.ndarray] = array.copy()
             if not already_negated:
@@ -486,8 +540,8 @@ def cabrera_factory(
     def _resolve(canonical: str) -> str:
         """Apply Cabrera substitution then resolve to the custom column name."""
         cabrera = _CABRERA_SUBSTITUTION.get(canonical, canonical)
-        if cabrera == "-AVR":
-            return "-AVR"
+        if cabrera == "-aVR":
+            return "-aVR"
         return canonical_to_custom.get(cabrera, cabrera)
 
     # Apply Cabrera substitution and resolve to actual column names
@@ -517,9 +571,9 @@ def expand_to_12_leads(
     .. math::
 
         \\text{III} &= \\text{II} - \\text{I} \\\\
-        \\text{AVR} &= -\\tfrac{\\text{I} + \\text{II}}{2} \\\\
-        \\text{AVL} &= \\text{I} - \\tfrac{\\text{II}}{2} \\\\
-        \\text{AVF} &= \\text{II} - \\tfrac{\\text{I}}{2}
+        \\text{aVR} &= -\\tfrac{\\text{I} + \\text{II}}{2} \\\\
+        \\text{aVL} &= \\text{I} - \\tfrac{\\text{II}}{2} \\\\
+        \\text{aVF} &= \\text{II} - \\tfrac{\\text{I}}{2}
 
     Parameters
     ----------
@@ -536,7 +590,7 @@ def expand_to_12_leads(
     -------
     pandas.DataFrame
         12-lead ECG DataFrame with columns in standard order:
-        I, II, III, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6.
+        I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6.
 
     Raises
     ------
@@ -572,9 +626,9 @@ def expand_to_12_leads(
 
     derived = {
         "III": lead_II - lead_I,
-        "AVR": -(lead_I + lead_II) / 2.0,
-        "AVL": lead_I - lead_II / 2.0,
-        "AVF": lead_II - lead_I / 2.0,
+        "aVR": -(lead_I + lead_II) / 2.0,
+        "aVL": lead_I - lead_II / 2.0,
+        "aVF": lead_II - lead_I / 2.0,
     }
 
     data: dict[str, np.ndarray] = {}

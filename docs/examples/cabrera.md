@@ -14,9 +14,9 @@ kernelspec:
 In this page, we will show how to plot ECGs in the [Cabrera format](https://en.wikipedia.org/wiki/Hexaxial_reference_system).
 This ECG presentation is particularly popular in Sweden, see [this article](https://lakartidningen.se/vetenskap/svensk-ekg-presentation-ar-logisk-och-lattforstaelig/).
 
-Cabrera format reorders the six limb leads as **AVL → I → −AVR → II → AVF → III**
-(instead of the standard I → II → III → AVR → AVL → AVF) and replaces the AVR
-lead with its inverse (−AVR). This arrangement places leads in a continuous
+Cabrera format reorders the six limb leads as **aVL → I → −aVR → II → aVF → III**
+(instead of the standard I → II → III → aVR → aVL → aVF) and replaces the aVR
+lead with its inverse (−aVR). This arrangement places leads in a continuous
 clockwise sequence around the frontal plane, making axis deviations and
 ischaemic patterns easier to spot.
 
@@ -39,13 +39,16 @@ There are two ways to plot an ECG in the cabrera format - we will explore both o
 
 `cabrera_factory` is a convenience function that:
 
-- Inverts the column AVR, and renames it to -AVR
+- Inverts the column aVR, and renames it to -aVR
 - Converts a canonical template (built via `template_factory`) into the Cabrera layout
 
 ```{code-cell} python
-from pmecg import cabrera_factory
+from pmecg import cabrera_factory, LeadsMap
 
-cabrera_data, cabrera_config = cabrera_factory('2x6', ecg_df)
+# PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
+ptbxl_map = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
+
+cabrera_data, cabrera_config = cabrera_factory('2x6', ecg_df, leads_map=ptbxl_map)
 print(cabrera_config)
 ```
 
@@ -68,8 +71,8 @@ fig = plotter.plot(cabrera_data, configuration=cabrera_config, sampling_frequenc
 ```{admonition} Warning
 :class: warning
 
-If your `leads_map` maps `AVR` to a name starting with `'-'`
-(e.g. `LeadsMap(AVR='-aVR')`), `cabrera_factory` assumes the column has already been negated and skips the sign flip. If the column is *not* actually pre-negated, the plot will be incorrect.
+If your `leads_map` maps `aVR` to a name starting with `'-'`
+(e.g. `LeadsMap(aVR='-aVR')`), `cabrera_factory` assumes the column has already been negated and skips the sign flip. If the column is *not* actually pre-negated, the plot will be incorrect.
 ```
 
 ## Approach 2. Manual
@@ -78,12 +81,12 @@ The same can result can be achieved by manually changing the sign of the aVR col
 
 ```{code-cell} python
 cabrera_df = ecg_df.copy()
-cabrera_df['-AVR'] = - cabrera_df['AVR']
+cabrera_df['-aVR'] = - cabrera_df['AVR']   # PTB-XL column is 'AVR'
 cabrera_df = cabrera_df.drop(columns=['AVR'])
 
-config = [['AVL', 'V1'],
+config = [['AVL', 'V1'],   # PTB-XL column names for aVL/aVF are still uppercase here
          ['I', 'V2'],
-         ['-AVR', 'V3'],
+         ['-aVR', 'V3'],   # our newly created negated column
          ['II', 'V4'],
          ['AVF', 'V5'],
          ['III', 'V6']]

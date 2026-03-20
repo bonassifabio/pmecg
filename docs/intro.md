@@ -21,7 +21,7 @@ import pmecg
 # 12-lead ECG at 500 Hz, 10 seconds
 fs = 500
 signal = np.random.randn(fs * 10, 12) * 0.5   # shape: (n_samples, n_leads)
-lead_names = ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+lead_names = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
 
 ecg_data = (signal, lead_names)
 config = pmecg.template_factory("4x3", ecg_data, leads_map=None)

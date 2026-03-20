@@ -33,9 +33,9 @@ CUSTOM_LEADS_MAP = LeadsMap(
     I="LI",
     II="LII",
     III="LIII",
-    AVR="aVR-custom",
-    AVL="aVL-custom",
-    AVF="aVF-custom",
+    aVR="aVR-custom",
+    aVL="aVL-custom",
+    aVF="aVF-custom",
     V1="Chest-1",
     V2="Chest-2",
     V3="Chest-3",
@@ -142,11 +142,11 @@ class TestNumpyToDataframeDefaults:
 SEGMENT_LEAD_GROUPS = [
     ["I"],
     ["I", "II"],
-    ["I", "AVR", "V6"],
-    ["I", "II", "III", "AVR"],
+    ["I", "aVR", "V6"],
+    ["I", "II", "III", "aVR"],
     ["V1", "V2", "V3", "V4", "V5", "V6"],
     # Adding a case that triggers the warning
-    ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],  # 7 leads, 120 % 7 != 0
+    ["I", "II", "III", "aVR", "aVL", "aVF", "V1"],  # 7 leads, 120 % 7 != 0
 ]
 
 
@@ -238,51 +238,51 @@ APPLY_CONFIG_CASES = [
     pytest.param(["V5"], [["V5"]], id="single-lead"),
     # exotic list configs
     pytest.param(
-        [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
-        [["I", "II", "III"], ["AVR", "AVL", "AVF"]],
+        [["I", "II", "III"], ["aVR", "aVL", "aVF"]],
+        [["I", "II", "III"], ["aVR", "aVL", "aVF"]],
         id="exotic-2x3",
     ),
     pytest.param(
-        [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
-        [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
+        [["I", "aVR", "V1", "V4"], ["II", "aVL", "V2", "V5"], ["III", "aVF", "V3", "V6"]],
+        [["I", "aVR", "V1", "V4"], ["II", "aVL", "V2", "V5"], ["III", "aVF", "V3", "V6"]],
         id="exotic-3x4",
     ),
     pytest.param(
-        [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]],
-        [["I", "II"], ["III", "AVR"], ["AVL", "AVF"], ["V1", "V2"]],
+        [["I", "II"], ["III", "aVR"], ["aVL", "aVF"], ["V1", "V2"]],
+        [["I", "II"], ["III", "aVR"], ["aVL", "aVF"], ["V1", "V2"]],
         id="exotic-4x2",
     ),
     # configuration with 6 leads in a row (will trigger warning with N_SAMPLES=120? 120/6=20, no)
     # let's add a custom configuration that triggers warning
     pytest.param(
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1"]],
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1"]],
         id="warn-7-leads",
     ),
     pytest.param(
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3"]],
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3"]],
         id="warn-9-leads",
     ),
     pytest.param(
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5"]],
-        [["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5"]],
+        [["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5"]],
         id="warn-11-leads",
     ),
     pytest.param(
         [
-            ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
-            ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],
+            ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            ["I", "II", "III", "aVR", "aVL", "aVF", "V1"],
         ],
         [
-            ["I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"],
-            ["I", "II", "III", "AVR", "AVL", "AVF", "V1"],
+            ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            ["I", "II", "III", "aVR", "aVL", "aVF", "V1"],
         ],
         id="mixed-warn",
     ),
     pytest.param(
-        [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], "V3"],
-        [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], ["V3"]],
+        [["I", "II", "III", "aVR"], ["aVL", "aVF", "V1", "V2"], "V3"],
+        [["I", "II", "III", "aVR"], ["aVL", "aVF", "V1", "V2"], ["V3"]],
         id="mixed-with-rhythm-strip",
     ),
 ]
@@ -413,14 +413,14 @@ class TestResolveConfiguration:
 
     # Checks that conventional lead names are rejected when the available input columns use custom labels instead.
     def test_custom_configuration_with_canonical_names_raises(self):
-        configuration = [["I", "AVR", "V1"], "V6"]
+        configuration = [["I", "aVR", "V1"], "V6"]
         with pytest.raises(ValueError, match="Lead name 'I' in configuration is not present"):
             _resolve_configuration(configuration, CUSTOM_LEADS)
 
     # Checks that template expansion fails when a required conventional lead is missing from the custom map.
     def test_template_factory_missing_required_canonical_mapping_raises(self):
-        partial_map = CUSTOM_LEADS_MAP._replace(AVR=None)
-        with pytest.raises(ValueError, match="Template '4x3' requires conventional lead 'AVR'"):
+        partial_map = CUSTOM_LEADS_MAP._replace(aVR=None)
+        with pytest.raises(ValueError, match="Template '4x3' requires conventional lead 'aVR'"):
             template_factory("4x3", _numpy_to_dataframe(_make_ecg_array(CUSTOM_LEADS), CUSTOM_LEADS), partial_map)
 
     # Checks that duplicate custom names in the lead map are rejected before template expansion.
@@ -453,6 +453,39 @@ class TestResolveConfiguration:
         ]
 
 
+class TestLeadsMapDeprecation:
+    # Checks that using the old uppercase AVR/AVL/AVF kwargs emits DeprecationWarning.
+    def test_deprecated_avr_kwarg_warns(self):
+        with pytest.warns(DeprecationWarning, match="AVR.*deprecated"):
+            lm = LeadsMap(AVR="custom_avr")
+        assert lm.aVR == "custom_avr"
+
+    def test_deprecated_avl_kwarg_warns(self):
+        with pytest.warns(DeprecationWarning, match="AVL.*deprecated"):
+            lm = LeadsMap(AVL="custom_avl")
+        assert lm.aVL == "custom_avl"
+
+    def test_deprecated_avf_kwarg_warns(self):
+        with pytest.warns(DeprecationWarning, match="AVF.*deprecated"):
+            lm = LeadsMap(AVF="custom_avf")
+        assert lm.aVF == "custom_avf"
+
+    # Checks that the new kwargs do not emit warnings.
+    def test_new_kwargs_no_warning(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            lm = LeadsMap(aVR="x", aVL="y", aVF="z")
+        assert lm.aVR == "x"
+        assert lm.aVL == "y"
+        assert lm.aVF == "z"
+
+    # Checks that the deprecated kwarg does not overwrite an explicitly provided new kwarg.
+    def test_deprecated_avr_does_not_overwrite_avr(self):
+        with pytest.warns(DeprecationWarning):
+            lm = LeadsMap(aVR="new", AVR="old")
+        assert lm.aVR == "new"
+
+
 # ---------------------------------------------------------------------------
 # +3 rhythm strip templates
 # ---------------------------------------------------------------------------
@@ -465,9 +498,9 @@ class TestThreeStripTemplates:
 
         config = _template_configuration("4x3+3")
         assert config == [
-            ["I", "AVR", "V1", "V4"],
-            ["II", "AVL", "V2", "V5"],
-            ["III", "AVF", "V3", "V6"],
+            ["I", "aVR", "V1", "V4"],
+            ["II", "aVL", "V2", "V5"],
+            ["III", "aVF", "V3", "V6"],
             "II",
             "V1",
             "V5",
@@ -482,9 +515,9 @@ class TestThreeStripTemplates:
             ["I", "V1"],
             ["II", "V2"],
             ["III", "V3"],
-            ["AVR", "V4"],
-            ["AVL", "V5"],
-            ["AVF", "V6"],
+            ["aVR", "V4"],
+            ["aVL", "V5"],
+            ["aVF", "V6"],
             "II",
             "V1",
             "V5",
@@ -499,7 +532,7 @@ class TestThreeStripTemplates:
             ["I", "V3"],
             ["II", "V4"],
             ["III", "V5"],
-            ["AVR", "V6"],
+            ["aVR", "V6"],
             "II",
             "V1",
             "V5",
@@ -510,9 +543,9 @@ class TestThreeStripTemplates:
         df = _make_12lead_df()
         resolved = template_factory("4x3+3", df, None)
         assert resolved == [
-            ["I", "AVR", "V1", "V4"],
-            ["II", "AVL", "V2", "V5"],
-            ["III", "AVF", "V3", "V6"],
+            ["I", "aVR", "V1", "V4"],
+            ["II", "aVL", "V2", "V5"],
+            ["III", "aVF", "V3", "V6"],
             "II",
             "V1",
             "V5",
@@ -536,9 +569,9 @@ class TestThreeStripTemplates:
         df = _make_12lead_df()
         new_data, config = cabrera_factory("4x3+3", df)
         assert config == [
-            ["AVL", "II", "V1", "V4"],
-            ["I", "AVF", "V2", "V5"],
-            ["-AVR", "III", "V3", "V6"],
+            ["aVL", "II", "V1", "V4"],
+            ["I", "aVF", "V2", "V5"],
+            ["-aVR", "III", "V3", "V6"],
             "II",
             "V1",
             "V5",
@@ -549,11 +582,11 @@ class TestThreeStripTemplates:
         df = _make_12lead_df()
         new_data, config = cabrera_factory("2x6+3", df)
         assert config == [
-            ["AVL", "V1"],
+            ["aVL", "V1"],
             ["I", "V2"],
-            ["-AVR", "V3"],
+            ["-aVR", "V3"],
             ["II", "V4"],
-            ["AVF", "V5"],
+            ["aVF", "V5"],
             ["III", "V6"],
             "II",
             "V1",
@@ -578,9 +611,9 @@ class TestCabreraFactory:
         df = _make_12lead_df()
         new_data, config = cabrera_factory("4x3", df)
         assert config == [
-            ["AVL", "II", "V1", "V4"],
-            ["I", "AVF", "V2", "V5"],
-            ["-AVR", "III", "V3", "V6"],
+            ["aVL", "II", "V1", "V4"],
+            ["I", "aVF", "V2", "V5"],
+            ["-aVR", "III", "V3", "V6"],
         ]
 
     # Checks that 2x6 Cabrera reorders limb leads correctly and keeps the rhythm strip.
@@ -588,11 +621,11 @@ class TestCabreraFactory:
         df = _make_12lead_df()
         new_data, config = cabrera_factory("2x6", df)
         assert config == [
-            ["AVL", "V1"],
+            ["aVL", "V1"],
             ["I", "V2"],
-            ["-AVR", "V3"],
+            ["-aVR", "V3"],
             ["II", "V4"],
-            ["AVF", "V5"],
+            ["aVF", "V5"],
             ["III", "V6"],
         ]
 
@@ -600,22 +633,22 @@ class TestCabreraFactory:
     def test_1x6_configuration(self):
         df = _make_12lead_df()
         new_data, config = cabrera_factory("1x6", df)
-        assert config == ["AVL", "I", "-AVR", "II", "AVF", "III"]
+        assert config == ["aVL", "I", "-aVR", "II", "aVF", "III"]
 
     # Checks that 1x12 Cabrera reorders limb leads, keeps precordial order.
     def test_1x12_configuration(self):
         df = _make_12lead_df()
         new_data, config = cabrera_factory("1x12", df)
-        assert config == ["AVL", "I", "-AVR", "II", "AVF", "III", "V1", "V2", "V3", "V4", "V5", "V6"]
+        assert config == ["aVL", "I", "-aVR", "II", "aVF", "III", "V1", "V2", "V3", "V4", "V5", "V6"]
 
-    # Checks that AVR is replaced by -AVR (negated) in the output DataFrame.
+    # Checks that aVR is replaced by -aVR (negated) in the output DataFrame.
     def test_neg_avr_column_added_dataframe(self):
         df = _make_12lead_df()
         new_data, _ = cabrera_factory("4x3", df)
         assert isinstance(new_data, pd.DataFrame)
-        assert "-AVR" in new_data.columns
-        assert "AVR" not in new_data.columns
-        np.testing.assert_array_equal(new_data["-AVR"].values, -df["AVR"].values)
+        assert "-aVR" in new_data.columns
+        assert "aVR" not in new_data.columns
+        np.testing.assert_array_equal(new_data["-aVR"].values, -df["aVR"].values)
 
     # Checks that the original DataFrame is not mutated.
     def test_does_not_mutate_original_dataframe(self):
@@ -624,30 +657,30 @@ class TestCabreraFactory:
         cabrera_factory("4x3", df)
         assert list(df.columns) == original_columns
 
-    # Checks that AVR is replaced by -AVR (negated) for tuple (ndarray, names) input.
+    # Checks that aVR is replaced by -aVR (negated) for tuple (ndarray, names) input.
     def test_neg_avr_column_added_numpy_tuple(self):
         arr = _make_ecg_array(list(SUPPORTED_LEADS))
         ecg_data = (arr, list(SUPPORTED_LEADS))
         new_data, _ = cabrera_factory("4x3", ecg_data)
         assert isinstance(new_data, tuple)
         new_arr, new_names = new_data
-        assert "-AVR" in new_names
-        assert "AVR" not in new_names
+        assert "-aVR" in new_names
+        assert "aVR" not in new_names
         assert len(new_names) == len(SUPPORTED_LEADS)  # no extra column added
-        avr_idx = list(SUPPORTED_LEADS).index("AVR")
+        avr_idx = list(SUPPORTED_LEADS).index("aVR")
         np.testing.assert_array_equal(new_arr[:, avr_idx], -arr[:, avr_idx])
 
-    # Checks that AVR is replaced by -AVR (negated) for tuple (list[ndarray], names) input.
+    # Checks that aVR is replaced by -aVR (negated) for tuple (list[ndarray], names) input.
     def test_neg_avr_column_added_list_of_arrays(self):
         leads = list(SUPPORTED_LEADS)
         arrays = [np.full(N_SAMPLES, float(i + 1)) for i in range(len(leads))]
         ecg_data = (arrays, leads)
         new_data, _ = cabrera_factory("4x3", ecg_data)
         new_arrays, new_names = new_data
-        assert "-AVR" in new_names
-        assert "AVR" not in new_names
+        assert "-aVR" in new_names
+        assert "aVR" not in new_names
         assert len(new_names) == len(leads)  # no extra array added
-        avr_idx = leads.index("AVR")
+        avr_idx = leads.index("aVR")
         np.testing.assert_array_equal(new_arrays[avr_idx], -arrays[avr_idx])
 
     # Checks that templates missing some limb leads are rejected.
@@ -666,11 +699,11 @@ class TestCabreraFactory:
         with pytest.raises(ValueError, match="Cabrera format requires all six limb leads"):
             cabrera_factory("2x4", df)
 
-    # Checks that data without AVR is rejected.
+    # Checks that data without aVR is rejected.
     def test_rejects_data_without_avr(self):
-        leads = ["I", "II", "III", "X", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+        leads = ["I", "II", "III", "X", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
         df = pd.DataFrame(np.ones((N_SAMPLES, 12)), columns=leads)
-        with pytest.raises(ValueError, match="requires 'AVR' lead"):
+        with pytest.raises(ValueError, match="requires 'aVR' lead"):
             cabrera_factory("1x6", df)
 
     # Checks that precordial leads (V1-V6) are not affected by the substitution.
@@ -697,44 +730,41 @@ class TestCabreraFactory:
                 all_config_leads.add(entry)
         assert all_config_leads.issubset(set(new_data.columns))
 
-    # Checks that a pre-negated AVR column (name starts with '-') is only renamed, not sign-flipped.
+    # Checks that a pre-negated aVR column (name starts with '-') is only renamed, not sign-flipped.
     def test_pre_negated_avr_dataframe(self):
         cols = list(SUPPORTED_LEADS)
         df = pd.DataFrame(np.ones((N_SAMPLES, 12)), columns=cols)
-        df["AVR"] = 2.0
-        df = df.rename(columns={"AVR": "-aVR"})
-        new_data, _ = cabrera_factory("4x3", df, leads_map=LeadsMap(AVR="-aVR"))
+        df["aVR"] = 2.0
+        df = df.rename(columns={"aVR": "-aVR"})
+        new_data, _ = cabrera_factory("4x3", df, leads_map=LeadsMap(aVR="-aVR"))
         assert isinstance(new_data, pd.DataFrame)
-        assert "-AVR" in new_data.columns
-        assert "-aVR" not in new_data.columns
-        # Values must be unchanged (no double-negation)
-        np.testing.assert_array_equal(new_data["-AVR"].values, df["-aVR"].values)
+        assert "-aVR" in new_data.columns
+        # Values must be unchanged (no double-negation); column was renamed in-place
+        np.testing.assert_array_equal(new_data["-aVR"].values, df["-aVR"].values)
 
     # Checks the same skip-flip behaviour for tuple (ndarray, names) input.
     def test_pre_negated_avr_numpy_tuple(self):
         leads = list(SUPPORTED_LEADS)
         arr = _make_ecg_array(leads)
-        avr_idx = leads.index("AVR")
+        avr_idx = leads.index("aVR")
         arr[:, avr_idx] = 3.0
-        neg_leads = ["-aVR" if n == "AVR" else n for n in leads]
+        neg_leads = ["-aVR" if n == "aVR" else n for n in leads]
         ecg_data = (arr, neg_leads)
-        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(AVR="-aVR"))
+        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(aVR="-aVR"))
         new_arr, new_names = new_data
-        assert "-AVR" in new_names
-        assert "-aVR" not in new_names
+        assert "-aVR" in new_names
         np.testing.assert_array_equal(new_arr[:, avr_idx], arr[:, avr_idx])
 
     # Checks the same skip-flip behaviour for tuple (list[ndarray], names) input.
     def test_pre_negated_avr_list_of_arrays(self):
         leads = list(SUPPORTED_LEADS)
-        avr_idx = leads.index("AVR")
+        avr_idx = leads.index("aVR")
         arrays = [np.full(N_SAMPLES, float(i + 1)) for i in range(len(leads))]
-        neg_leads = ["-aVR" if n == "AVR" else n for n in leads]
+        neg_leads = ["-aVR" if n == "aVR" else n for n in leads]
         ecg_data = (arrays, neg_leads)
-        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(AVR="-aVR"))
+        new_data, _ = cabrera_factory("4x3", ecg_data, leads_map=LeadsMap(aVR="-aVR"))
         new_arrays, new_names = new_data
-        assert "-AVR" in new_names
-        assert "-aVR" not in new_names
+        assert "-aVR" in new_names
         np.testing.assert_array_equal(new_arrays[avr_idx], arrays[avr_idx])
 
     # Checks that leads_map is respected: config uses custom column names and -AVR is derived from the mapped AVR.
@@ -759,12 +789,12 @@ class TestCabreraFactory:
         assert config == [
             ["aVL-custom", "LII", "Chest-1", "Chest-4"],
             ["LI", "aVF-custom", "Chest-2", "Chest-5"],
-            ["-AVR", "LIII", "Chest-3", "Chest-6"],
+            ["-aVR", "LIII", "Chest-3", "Chest-6"],
         ]
         assert isinstance(new_data, pd.DataFrame)
-        assert "-AVR" in new_data.columns
+        assert "-aVR" in new_data.columns
         assert "aVR-custom" not in new_data.columns
-        np.testing.assert_array_equal(new_data["-AVR"].values, -df["aVR-custom"].values)
+        np.testing.assert_array_equal(new_data["-aVR"].values, -df["aVR-custom"].values)
 
 
 # ---------------------------------------------------------------------------
@@ -836,7 +866,7 @@ class TestApplyConfigurationAdvanced:
         df = _make_12lead_df()
         config = [
             [LeadSegment(lead="I", start=0, end=60), LeadSegment(lead="II", start=0, end=60)],
-            [LeadSegment(lead="III", start=0, end=60), LeadSegment(lead="AVR", start=0, end=60)],
+            [LeadSegment(lead="III", start=0, end=60), LeadSegment(lead="aVR", start=0, end=60)],
         ]
         result = _apply_configuration(df, config, disconnect_segments=False)
         assert len(result) == 2
@@ -921,7 +951,7 @@ class TestApplyConfigurationAdvanced:
         df = _make_12lead_df()
         # 3-lead row (120 samples) + 7-lead row (119 samples) — lengths differ
         # but only the divisibility warning fires, not the unequal-length one.
-        config = [["I", "II", "III"], ["V1", "V2", "V3", "V4", "V5", "V6", "AVR"]]
+        config = [["I", "II", "III"], ["V1", "V2", "V3", "V4", "V5", "V6", "aVR"]]
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _apply_configuration(df, config, disconnect_segments=False)
@@ -976,23 +1006,23 @@ class TestExpandTo12Lead:
         result = expand_to_12_leads(df)
         np.testing.assert_allclose(result["III"].values, df["II"].values - df["I"].values)
 
-    # Checks AVR = -(I + II) / 2.
+    # Checks aVR = -(I + II) / 2.
     def test_lead_AVR_formula(self):
         df = _make_8lead_df()
         result = expand_to_12_leads(df)
-        np.testing.assert_allclose(result["AVR"].values, -(df["I"].values + df["II"].values) / 2.0)
+        np.testing.assert_allclose(result["aVR"].values, -(df["I"].values + df["II"].values) / 2.0)
 
-    # Checks AVL = I - II/2.
+    # Checks aVL = I - II/2.
     def test_lead_AVL_formula(self):
         df = _make_8lead_df()
         result = expand_to_12_leads(df)
-        np.testing.assert_allclose(result["AVL"].values, df["I"].values - df["II"].values / 2.0)
+        np.testing.assert_allclose(result["aVL"].values, df["I"].values - df["II"].values / 2.0)
 
-    # Checks AVF = II - I/2.
+    # Checks aVF = II - I/2.
     def test_lead_AVF_formula(self):
         df = _make_8lead_df()
         result = expand_to_12_leads(df)
-        np.testing.assert_allclose(result["AVF"].values, df["II"].values - df["I"].values / 2.0)
+        np.testing.assert_allclose(result["aVF"].values, df["II"].values - df["I"].values / 2.0)
 
     # Checks that Einthoven's law holds: I + III = II (i.e. III = II - I).
     def test_einthoven_law(self):
@@ -1028,16 +1058,18 @@ class TestExpandTo12Lead:
 # Checks that derived limb leads match the recorded PTB-XL ground-truth leads within floating-point tolerance.
 @pytest.mark.integration
 def test_expand_to_12_leads_matches_ptbxl():
-    """Derived leads III, AVR, AVL, AVF match PTB-XL ground-truth within 1.5e-3 (element-wise)."""
+    """Derived leads III, aVR, aVL, aVF match PTB-XL ground-truth within 1.5e-3 (element-wise)."""
     from ptbxl_helper import get_ptbxl_record
 
     record = get_ptbxl_record(1)
+    # PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; rename to canonical names before processing.
     ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+    ecg_df = ecg_df.rename(columns={"AVR": "aVR", "AVL": "aVL", "AVF": "aVF"})
 
-    eight_lead_df = ecg_df.drop(columns=["III", "AVR", "AVL", "AVF"])
+    eight_lead_df = ecg_df.drop(columns=["III", "aVR", "aVL", "aVF"])
     result = expand_to_12_leads(eight_lead_df)
 
-    for lead in ("III", "AVR", "AVL", "AVF"):
+    for lead in ("III", "aVR", "aVL", "aVF"):
         np.testing.assert_allclose(
             result[lead].values,
             ecg_df[lead].values,
