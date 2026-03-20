@@ -164,6 +164,9 @@ class ECGPlotter:
         Whether to show the calibration pulse in the left margin of each row, by default True.
     show_leads_labels : bool, optional
         Whether to print lead names onto the plot, by default True.
+    show_separators : bool, optional
+        Whether to draw short vertical tick marks at the boundary between adjacent
+        lead columns within each row, by default True.
     disconnect_segments : bool, optional
         If True, the last sample of each segment is set to NaN so that adjacent
         segments are not visually connected in the plot. By default True.
@@ -184,6 +187,7 @@ class ECGPlotter:
         show_time_axis: bool = False,
         show_calibration: bool = True,
         show_leads_labels: bool = True,
+        show_separators: bool = True,
         disconnect_segments: bool = True,
         show_dpi: int = 300,
     ):
@@ -205,6 +209,7 @@ class ECGPlotter:
         self.show_time_axis = show_time_axis
         self.show_calibration = show_calibration
         self.show_leads_labels = show_leads_labels
+        self.show_separators = show_separators
         self.disconnect_segments = disconnect_segments
         self.show_dpi = show_dpi
 
@@ -336,6 +341,7 @@ class ECGPlotter:
             voltage=self.voltage,
             show_calibration=self.show_calibration,
             show_leads_labels=self.show_leads_labels,
+            show_separators=self.show_separators,
         )
 
         # Figure dimensions

@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 
 ECG_IDS = [1, 2, 3, 4, 5]
 SPEED = 25  # mm/s
-CONFIGURATIONS = ["1x3", "2x6", "4x3", "4x3+1"]
+CONFIGURATIONS = ["1x3", "2x6", "4x3", "4x3+1", "4x3+3"]
 OUTPUT_ROOT = "example/artifacts/no-attention"
 
 

@@ -82,6 +82,7 @@ class _RenderContext:
     voltage: float
     show_calibration: bool
     show_leads_labels: bool
+    show_separators: bool
 
 
 def _nice_tick_step(total_time_s: float) -> float:
@@ -285,6 +286,37 @@ def _plot_calibration_pulse(
     ax.text(x_mid, y_offset + amp, "1mV", ha="center", va="bottom", fontsize=6, fontfamily="monospace")
 
 
+def _plot_separator(
+    ax: matplotlib.axes.Axes,
+    x: float,
+    y_offset: float,
+    line_width: float,
+) -> None:
+    """Draw a pair of short vertical tick marks at a lead segment boundary.
+
+    Two ticks are drawn symmetrically above and below the row zero-line:
+    each is approximately 3 mm long and starts approximately 2 mm from the
+    zero-line, forming a visual divider between adjacent lead columns.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes to draw on. Coordinates are in inches.
+    x : float
+        X coordinate (in inches) of the separator.
+    y_offset : float
+        Vertical zero-line of the row in figure inches.
+    line_width : float
+        Line thickness in points.
+    """
+    gap_inches = 2.0 / MM_PER_INCH
+    length_inches = 3.0 / MM_PER_INCH
+    for sign in (1, -1):
+        y_start = y_offset + sign * gap_inches
+        y_end = y_offset + sign * (gap_inches + length_inches)
+        ax.plot([x, x], [y_start, y_end], color="black", linewidth=line_width, zorder=3)
+
+
 def _plot_row(
     ax: matplotlib.axes.Axes,
     row: tuple[np.ndarray, list[str]],
@@ -325,6 +357,7 @@ def _plot_row(
         By default ``None`` (even-split assumed, matching classic string-based rows).
     """
     tti = time_to_inches if time_to_inches is not None else ctx.time_to_inches
+
     signal, leads = row
     n_samples = len(signal)
     n_leads = len(leads)
@@ -358,6 +391,13 @@ def _plot_row(
 
     if ctx.show_calibration:
         _plot_calibration_pulse(ax, ctx, y_offset)
+
+    # --- Separators ---
+    if ctx.show_separators and n_leads > 1:
+        for i in range(1, n_leads):
+            sample_start = segment_offsets[i] if segment_offsets is not None else i * (n_samples // n_leads)
+            x_sep = left_margin_inches + sample_start * tti
+            _plot_separator(ax, x_sep, y_offset, ctx.line_width)
 
     # --- Labels ---
     if ctx.show_leads_labels:

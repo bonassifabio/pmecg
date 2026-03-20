@@ -842,7 +842,7 @@ def test_signal_horizontal_extent(ecg_df, configuration, n_rows, speed):
 # Checks that each named template expands to the expected number of visible ECG rows.
 def test_template_row_count(ecg_df, template_key, expected_n_rows):
     """Each named template produces the correct number of ECG rows."""
-    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False, show_separators=False)
     configuration = _make_template_configuration(template_key, ecg_df)
     with maybe_warns_divisible(configuration, N_SAMPLES):
         fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
@@ -966,7 +966,7 @@ def test_plot_rejects_template_string_configuration(ecg_df):
 
 # Checks that rhythm_strips appends additional rows to the figure.
 def test_rhythm_strips_adds_rows(ecg_df):
-    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
+    plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False, show_separators=False)
     configuration = [["I", "II", "III"]]
     rhythm_strips = RhythmStripsConfig(ecg_data=ecg_df[["II", "V1"]])
     with maybe_warns_divisible(configuration, N_SAMPLES):
