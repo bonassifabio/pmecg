@@ -60,9 +60,9 @@ fig = plotter.plot(cabrera_data, configuration=cabrera_config, sampling_frequenc
 :class: Note
 
 `cabrera_factory` supports all templates that include all six limb leads:
-`'1x6'`, `'1x12'`, `'2x6'`, `'4x3'`, `'2x6+1'`, and `'4x3+1'`. Rhythm-strip
-rows (bare string entries in multi-row templates like `'2x6+1'`) are preserved
-unchanged.
+`'1x6'`, `'1x12'`, `'2x6'`, `'4x3'`, `'2x6+1'`, `'4x3+1'`, `'2x6+3'`, and
+`'4x3+3'`. Rhythm-strip rows (bare string entries in multi-row templates like
+`'2x6+1'`) are preserved unchanged.
 ```
 
 ```{admonition} Warning

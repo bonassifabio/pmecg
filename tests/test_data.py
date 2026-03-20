@@ -454,6 +454,120 @@ class TestResolveConfiguration:
 
 
 # ---------------------------------------------------------------------------
+# +3 strip templates
+# ---------------------------------------------------------------------------
+
+
+class TestThreeStripTemplates:
+    # Checks that 4x3+3 has the expected row/strip layout.
+    def test_4x3_plus3_configuration(self):
+        from pmecg.utils.data import _template_configuration
+
+        config = _template_configuration("4x3+3")
+        assert config == [
+            ["I", "AVR", "V1", "V4"],
+            ["II", "AVL", "V2", "V5"],
+            ["III", "AVF", "V3", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that 2x6+3 has the expected row/strip layout.
+    def test_2x6_plus3_configuration(self):
+        from pmecg.utils.data import _template_configuration
+
+        config = _template_configuration("2x6+3")
+        assert config == [
+            ["I", "V1"],
+            ["II", "V2"],
+            ["III", "V3"],
+            ["AVR", "V4"],
+            ["AVL", "V5"],
+            ["AVF", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that 2x4+3 has the expected row/strip layout.
+    def test_2x4_plus3_configuration(self):
+        from pmecg.utils.data import _template_configuration
+
+        config = _template_configuration("2x4+3")
+        assert config == [
+            ["I", "V3"],
+            ["II", "V4"],
+            ["III", "V5"],
+            ["AVR", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that template_factory resolves +3 templates against a canonical DataFrame.
+    def test_template_factory_resolves_4x3_plus3(self):
+        df = _make_12lead_df()
+        resolved = template_factory("4x3+3", df, None)
+        assert resolved == [
+            ["I", "AVR", "V1", "V4"],
+            ["II", "AVL", "V2", "V5"],
+            ["III", "AVF", "V3", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that template_factory resolves +3 templates with custom lead names.
+    def test_template_factory_resolves_4x3_plus3_custom_names(self):
+        df = _numpy_to_dataframe(_make_ecg_array(CUSTOM_LEADS), CUSTOM_LEADS)
+        resolved = template_factory("4x3+3", df, CUSTOM_LEADS_MAP)
+        assert resolved == [
+            ["LI", "aVR-custom", "Chest-1", "Chest-4"],
+            ["LII", "aVL-custom", "Chest-2", "Chest-5"],
+            ["LIII", "aVF-custom", "Chest-3", "Chest-6"],
+            "LII",
+            "Chest-1",
+            "Chest-5",
+        ]
+
+    # Checks that cabrera_factory works with 4x3+3 (all 6 limb leads present).
+    def test_cabrera_factory_4x3_plus3(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("4x3+3", df)
+        assert config == [
+            ["AVL", "II", "V1", "V4"],
+            ["I", "AVF", "V2", "V5"],
+            ["-AVR", "III", "V3", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that cabrera_factory works with 2x6+3 (all 6 limb leads present).
+    def test_cabrera_factory_2x6_plus3(self):
+        df = _make_12lead_df()
+        new_data, config = cabrera_factory("2x6+3", df)
+        assert config == [
+            ["AVL", "V1"],
+            ["I", "V2"],
+            ["-AVR", "V3"],
+            ["II", "V4"],
+            ["AVF", "V5"],
+            ["III", "V6"],
+            "II",
+            "V1",
+            "V5",
+        ]
+
+    # Checks that cabrera_factory rejects 2x4+3 (missing AVL and AVF).
+    def test_cabrera_factory_rejects_2x4_plus3(self):
+        df = _make_12lead_df()
+        with pytest.raises(ValueError, match="Cabrera format requires all six limb leads"):
+            cabrera_factory("2x4+3", df)
+
+
+# ---------------------------------------------------------------------------
 # cabrera_factory
 # ---------------------------------------------------------------------------
 

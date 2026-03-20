@@ -90,6 +90,9 @@ named templates. The supported templates are:
 | `'2x4+1'` | 4 rows with two concurrent leads + lead II rhythm strip |
 | `'2x6+1'` | 6 rows with two concurrent leads + lead II rhythm strip |
 | `'4x3+1'` | 3 rows with four concurrent leads + lead II rhythm strip |
+| `'2x4+3'` | 4 rows with two concurrent leads + II, V1, V5 rhythm strips |
+| `'2x6+3'` | 6 rows with two concurrent leads + II, V1, V5 rhythm strips |
+| `'4x3+3'` | 3 rows with four concurrent leads + II, V1, V5 rhythm strips |
 
 Because a template uses canonical lead names (`"I"`, `"II"`, …, `"V6"`) while
 your input DataFrame may use different column names, you must first call

@@ -11,7 +11,24 @@ import pandas as pd
 from pmecg.types import ConfigurationDataType, ECGDataType, LeadSegment
 
 SUPPORTED_LEADS = ("I", "II", "III", "AVR", "AVL", "AVF", "V1", "V2", "V3", "V4", "V5", "V6")
-SUPPORTED_TEMPLATES = ("1x1", "1x2", "1x3", "1x4", "1x6", "1x8", "1x12", "2x4", "2x6", "4x3", "2x4+1", "2x6+1", "4x3+1")
+SUPPORTED_TEMPLATES = (
+    "1x1",
+    "1x2",
+    "1x3",
+    "1x4",
+    "1x6",
+    "1x8",
+    "1x12",
+    "2x4",
+    "2x6",
+    "4x3",
+    "2x4+1",
+    "2x6+1",
+    "4x3+1",
+    "2x4+3",
+    "2x6+3",
+    "4x3+3",
+)
 
 # Cabrera limb leads: the order in which the 6 limb leads appear in Cabrera format.
 _CABRERA_LIMB_ORDER = ("AVL", "I", "-AVR", "II", "AVF", "III")
@@ -76,6 +93,9 @@ _TEMPLATE_CONFIGURATIONS: dict[str, ConfigurationDataType] = {
     "2x6+1": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II"],
     "4x3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"]],
     "4x3+1": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II"],
+    "2x4+3": [["I", "V3"], ["II", "V4"], ["III", "V5"], ["AVR", "V6"], "II", "V1", "V5"],
+    "2x6+3": [["I", "V1"], ["II", "V2"], ["III", "V3"], ["AVR", "V4"], ["AVL", "V5"], ["AVF", "V6"], "II", "V1", "V5"],
+    "4x3+3": [["I", "AVR", "V1", "V4"], ["II", "AVL", "V2", "V5"], ["III", "AVF", "V3", "V6"], "II", "V1", "V5"],
 }
 
 
@@ -321,7 +341,7 @@ def template_factory(template: str, ecg_data: ECGDataType, leads_map: LeadsMap |
         Name of the built-in template to expand. Supported values:
         ``'1x1'``, ``'1x2'``, ``'1x3'``, ``'1x4'``, ``'1x6'``, ``'1x8'``,
         ``'1x12'``, ``'2x4'``, ``'2x6'``, ``'4x3'``, ``'2x4+1'``, ``'2x6+1'``,
-        ``'4x3+1'``.
+        ``'4x3+1'``, ``'2x4+3'``, ``'2x6+3'``, ``'4x3+3'``.
     ecg_data : ECGDataType
         The ECG input used to resolve the final lead names. Must be the same
         object (or an object of the same type and with the same columns/lead
@@ -380,7 +400,7 @@ def cabrera_factory(
     template : str
         Name of a built-in template to expand. The template must reference
         all six limb leads (supported: ``'1x6'``, ``'1x12'``, ``'2x6'``,
-        ``'4x3'``, ``'2x6+1'``, ``'4x3+1'``).
+        ``'4x3'``, ``'2x6+1'``, ``'4x3+1'``, ``'2x6+3'``, ``'4x3+3'``).
     ecg_data : ECGDataType
         ECG input. Must include all six limb leads. When the input uses
         non-canonical column names, provide ``leads_map`` to map them.
