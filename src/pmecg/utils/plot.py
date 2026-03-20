@@ -25,7 +25,7 @@ COLORBAR_LABEL_PAD_MM = 1.5
 COLORBAR_TICK_LENGTH_MM = 1.0
 
 # Calibration pulse dimensions
-CAL_PULSE_WIDTH_MM = 5.0  # 1 large square wide
+CAL_PULSE_DURATION_S = 0.2  # 5 mm at 25 mm/s → 0.2 s; scales with speed
 CAL_PULSE_AMP_MV = 1.0  # standard 1 mV amplitude
 CAL_PULSE_OFFSET_MM = 3.0  # gap from left figure edge to the rising edge
 _STAT_FORMATTERS: tuple[tuple[str, str, str], ...] = (
@@ -254,21 +254,23 @@ def _plot_calibration_pulse(
 ) -> None:
     """Draw a 1 mV square calibration pulse (_|-|_) in the left margin for a row.
 
-    The pulse is 1 large square wide (CAL_PULSE_WIDTH_MM = 5 mm) and 1 mV tall,
-    positioned within the left margin starting at CAL_PULSE_OFFSET_MM from the
-    left edge of the figure.
+    The pulse is ``CAL_PULSE_DURATION_S`` seconds wide (5 mm at 25 mm/s, scaling
+    linearly with ``ctx.speed``) and 1 mV tall, positioned within the left margin
+    starting at CAL_PULSE_OFFSET_MM from the left edge of the figure.
 
     Parameters
     ----------
     ax : matplotlib.axes.Axes
         The axes to draw on. Coordinates are in inches.
     ctx : _RenderContext
-        Rendering context; ``ctx.mv_to_inches`` and ``ctx.line_width`` are used.
+        Rendering context; ``ctx.mv_to_inches``, ``ctx.speed``, and
+        ``ctx.line_width`` are used.
     y_offset : float
         Vertical zero-line of the row in figure inches.
     """
+    cal_pulse_width_mm = CAL_PULSE_DURATION_S * ctx.speed
     x0 = CAL_PULSE_OFFSET_MM / MM_PER_INCH
-    x1 = (CAL_PULSE_OFFSET_MM + CAL_PULSE_WIDTH_MM) / MM_PER_INCH
+    x1 = (CAL_PULSE_OFFSET_MM + cal_pulse_width_mm) / MM_PER_INCH
     x_signal = LEFT_MARGIN_MM / MM_PER_INCH
     amp = CAL_PULSE_AMP_MV * ctx.mv_to_inches
 
