@@ -139,8 +139,8 @@ def _compute_figure_size(
     row_distance_mv: float,
     print_information: bool = False,
     right_margin_mm: float = RIGHT_MARGIN_MM,
-    strip_seq_len: int | None = None,
-    strip_speed: float | None = None,
+    rhythm_strip_seq_len: int | None = None,
+    rhythm_strip_speed: float | None = None,
 ) -> tuple[float, float]:
     """Compute the figure width and height in inches based on ECG parameters.
 
@@ -164,13 +164,13 @@ def _compute_figure_size(
     right_margin_mm : float, optional
         Width of the right margin in millimetres. This is expanded when an
         attention color scale needs to be drawn, by default ``RIGHT_MARGIN_MM``.
-    strip_seq_len : int | None, optional
-        Number of samples in the strip rows (typically the full recording
-        length). When provided, the figure width is expanded if the strip
+    rhythm_strip_seq_len : int | None, optional
+        Number of samples in the rhythm strip rows (typically the full recording
+        length). When provided, the figure width is expanded if the rhythm strip
         rows are wider than the main config rows. By default ``None``.
-    strip_speed : float | None, optional
-        Paper speed in mm/s for strip rows. When ``None``, ``speed`` is used.
-        Only meaningful when ``strip_seq_len`` is provided. By default ``None``.
+    rhythm_strip_speed : float | None, optional
+        Paper speed in mm/s for rhythm strip rows. When ``None``, ``speed`` is used.
+        Only meaningful when ``rhythm_strip_seq_len`` is provided. By default ``None``.
 
     Returns
     -------
@@ -182,10 +182,12 @@ def _compute_figure_size(
     total_time_s = seq_len / sampling_frequency
     # Convert to mm: duration * speed, then add left and right margins
     width_mm = total_time_s * speed + LEFT_MARGIN_MM + right_margin_mm
-    if strip_seq_len is not None:
-        effective_strip_speed = strip_speed if strip_speed is not None else speed
-        strip_width_mm = strip_seq_len / sampling_frequency * effective_strip_speed + LEFT_MARGIN_MM + right_margin_mm
-        width_mm = max(width_mm, strip_width_mm)
+    if rhythm_strip_seq_len is not None:
+        effective_rhythm_strip_speed = rhythm_strip_speed if rhythm_strip_speed is not None else speed
+        rhythm_strip_width_mm = (
+            rhythm_strip_seq_len / sampling_frequency * effective_rhythm_strip_speed + LEFT_MARGIN_MM + right_margin_mm
+        )
+        width_mm = max(width_mm, rhythm_strip_width_mm)
     width_inches = width_mm / MM_PER_INCH
 
     # --- Height ---
@@ -475,7 +477,7 @@ def _print_information(
     last_row_zero_inches: float,
     information=None,
     stats=None,
-    strip_speed: float | None = None,
+    rhythm_strip_speed: float | None = None,
 ) -> None:
     """Annotate the figure with diagnostic parameters and optional patient information.
 
@@ -511,9 +513,9 @@ def _print_information(
     stats : ECGStats, optional
         Computed ECG statistics. Non-None fields are printed top-right in a
         column-major grid (up to 3 rows per column).
-    strip_speed : float | None, optional
-        Paper speed in mm/s for strip rows, printed in the diagnostics line
-        when it differs from the main speed. By default ``None``.
+    rhythm_strip_speed : float | None, optional
+        Paper speed in mm/s for rhythm strip rows, printed in the diagnostics line
+        as ``Rhythm: X mm/s`` when it differs from the main speed. By default ``None``.
     """
     font = {"fontsize": 7, "fontfamily": "monospace"}
     x_left = LEFT_MARGIN_MM / MM_PER_INCH
@@ -527,9 +529,9 @@ def _print_information(
 
     # --- Bottom-left: diagnostics (single line) ---
     leads_str = " ".join(leads)
-    strip_speed_part = f"   Strip speed: {strip_speed:g} mm/s" if strip_speed is not None else ""
+    rhythm_strip_speed_part = f"   Rhythm: {rhythm_strip_speed:g} mm/s" if rhythm_strip_speed is not None else ""
     diag_line = (
-        f"Speed: {ctx.speed:g} mm/s{strip_speed_part}   "
+        f"Speed: {ctx.speed:g} mm/s{rhythm_strip_speed_part}   "
         f"Voltage: {ctx.voltage:g} mm/mV   "
         f"Freq: {sampling_frequency:g} Hz   "
         f"Leads: {leads_str}"
@@ -604,13 +606,13 @@ def _print_information(
 
 def _validate_time_axis_config(
     all_segments: list[list[LeadSegment]],
-    strip_speed: float | None,
+    rhythm_strip_speed: float | None,
     main_speed: float,
 ) -> None:
     """Raise ValueError if the layout is incompatible with ``show_time_axis=True``.
 
     The time axis is only meaningful when every row shares the same time origin,
-    segments within each row are strictly contiguous, and strip leads (if any)
+    segments within each row are strictly contiguous, and rhythm strips (if any)
     run at the same paper speed as the main layout.
     """
     if not all_segments:
@@ -641,9 +643,9 @@ def _validate_time_axis_config(
                 )
 
     # Strip leads must run at the same speed as the main layout.
-    if strip_speed is not None:
+    if rhythm_strip_speed is not None:
         raise ValueError(
-            f"show_time_axis=True is not supported when strip_leads uses a different speed "
-            f"({strip_speed:g} mm/s) than the main layout ({main_speed:g} mm/s). "
-            "Set strip_leads.speed to match the plotter speed, or set show_time_axis=False."
+            f"show_time_axis=True is not supported when rhythm_strips uses a different speed "
+            f"({rhythm_strip_speed:g} mm/s) than the main layout ({main_speed:g} mm/s). "
+            "Set rhythm_strips.speed to match the plotter speed, or set show_time_axis=False."
         )

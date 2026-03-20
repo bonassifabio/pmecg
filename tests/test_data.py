@@ -283,7 +283,7 @@ APPLY_CONFIG_CASES = [
     pytest.param(
         [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], "V3"],
         [["I", "II", "III", "AVR"], ["AVL", "AVF", "V1", "V2"], ["V3"]],
-        id="mixed-with-strip",
+        id="mixed-with-rhythm-strip",
     ),
 ]
 
@@ -454,12 +454,12 @@ class TestResolveConfiguration:
 
 
 # ---------------------------------------------------------------------------
-# +3 strip templates
+# +3 rhythm strip templates
 # ---------------------------------------------------------------------------
 
 
 class TestThreeStripTemplates:
-    # Checks that 4x3+3 has the expected row/strip layout.
+    # Checks that 4x3+3 has the expected row/rhythm-strip layout.
     def test_4x3_plus3_configuration(self):
         from pmecg.utils.data import _template_configuration
 
@@ -473,7 +473,7 @@ class TestThreeStripTemplates:
             "V5",
         ]
 
-    # Checks that 2x6+3 has the expected row/strip layout.
+    # Checks that 2x6+3 has the expected row/rhythm-strip layout.
     def test_2x6_plus3_configuration(self):
         from pmecg.utils.data import _template_configuration
 
@@ -490,7 +490,7 @@ class TestThreeStripTemplates:
             "V5",
         ]
 
-    # Checks that 2x4+3 has the expected row/strip layout.
+    # Checks that 2x4+3 has the expected row/rhythm-strip layout.
     def test_2x4_plus3_configuration(self):
         from pmecg.utils.data import _template_configuration
 
@@ -573,7 +573,7 @@ class TestThreeStripTemplates:
 
 
 class TestCabreraFactory:
-    # Checks that 4x3 Cabrera reorders limb leads correctly and keeps the strip.
+    # Checks that 4x3 Cabrera reorders limb leads correctly and keeps the rhythm strip.
     def test_4x3_configuration(self):
         df = _make_12lead_df()
         new_data, config = cabrera_factory("4x3", df)
@@ -583,7 +583,7 @@ class TestCabreraFactory:
             ["-AVR", "III", "V3", "V6"],
         ]
 
-    # Checks that 2x6 Cabrera reorders limb leads correctly and keeps the strip.
+    # Checks that 2x6 Cabrera reorders limb leads correctly and keeps the rhythm strip.
     def test_2x6_configuration(self):
         df = _make_12lead_df()
         new_data, config = cabrera_factory("2x6", df)
@@ -596,7 +596,7 @@ class TestCabreraFactory:
             ["III", "V6"],
         ]
 
-    # Checks that 1x6 Cabrera reorders all limb leads (no strip).
+    # Checks that 1x6 Cabrera reorders all limb leads (no rhythm strip).
     def test_1x6_configuration(self):
         df = _make_12lead_df()
         new_data, config = cabrera_factory("1x6", df)

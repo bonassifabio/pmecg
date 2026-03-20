@@ -19,7 +19,7 @@ from pmecg import (
     BackgroundAttentionMap,
     IntervalAttentionMap,
     LineColorAttentionMap,
-    StripLeadsConfig,
+    RhythmStripsConfig,
     attention_map_from_time_annotations,
     template_factory,
 )
@@ -58,7 +58,7 @@ def _build_attention_map(
     kind: str,
     attention_variant: str,
     attention_df: pd.DataFrame,
-    strip_leads_attention: pd.DataFrame | None = None,
+    rhythm_strips_attention: pd.DataFrame | None = None,
 ) -> pmecg.AbstractAttentionMap:
     if attention_variant == "signed":
         common_kwargs = {"data": attention_df, "polarity": "signed", "color": ("blue", "red")}
@@ -67,8 +67,8 @@ def _build_attention_map(
     else:
         raise ValueError(f"Unsupported attention variant: {attention_variant}")
 
-    if strip_leads_attention is not None:
-        common_kwargs["strip_leads_attention"] = strip_leads_attention
+    if rhythm_strips_attention is not None:
+        common_kwargs["rhythm_strips_attention"] = rhythm_strips_attention
 
     if kind == "interval":
         return IntervalAttentionMap(max_attention_mV=0.5, alpha=0.4, **common_kwargs)
@@ -137,8 +137,8 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
         ("line-color", lambda df: LineColorAttentionMap(data=df, polarity="positive", color="red")),
     ],
 )
-def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory) -> None:
-    """Plot a PTB-XL record with a manual annotation on the strip lead (II) from 1.5s to 4.0s."""
+def test_manual_annotation_rhythm_strip(attention_kind: str, attention_map_factory) -> None:
+    """Plot a PTB-XL record with a manual annotation on the rhythm strip (II) from 1.5s to 4.0s."""
     record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
     ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 
@@ -179,8 +179,8 @@ def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory
         plt.close(fig)
 
 
-STRIP_LEAD = "II"
-STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled strip lead fills the same width
+RHYTHM_STRIP_LEAD = "II"
+RHYTHM_STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled rhythm strip fills the same width
 
 
 @pytest.mark.parametrize(
@@ -191,16 +191,16 @@ STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled strip lead fills the sam
     ],
 )
 @pytest.mark.parametrize("attention_kind", ["interval", "line-color", "background"])
-def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: str, attention_factory) -> None:
-    """Plot a PTB-XL record with attention overlaid on both the main layout and a 2x-long strip lead (II at half speed)."""
+def test_attention_map_with_rhythm_strip(attention_kind: str, attention_variant: str, attention_factory) -> None:
+    """Plot a PTB-XL record with attention overlaid on both the main layout and a 2x-long rhythm strip (II at half speed)."""
     record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
     ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
     attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
 
-    ii_signal = record.p_signal[:, list(record.sig_name).index(STRIP_LEAD)]
-    strip_signal = np.concatenate([ii_signal, ii_signal])
-    strip_df = pd.DataFrame({STRIP_LEAD: strip_signal})
-    strip_attention_df = attention_factory(len(strip_signal), [STRIP_LEAD])
+    ii_signal = record.p_signal[:, list(record.sig_name).index(RHYTHM_STRIP_LEAD)]
+    rhythm_strip_signal = np.concatenate([ii_signal, ii_signal])
+    rhythm_strip_df = pd.DataFrame({RHYTHM_STRIP_LEAD: rhythm_strip_signal})
+    rhythm_strip_attention_df = attention_factory(len(rhythm_strip_signal), [RHYTHM_STRIP_LEAD])
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
     plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
@@ -208,7 +208,7 @@ def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: s
         age=metadata["age"],
         sex=metadata["sex"],
         date=metadata["date"],
-        machine_model=f"PTB-XL attention + strip example ({attention_kind}, {attention_variant})",
+        machine_model=f"PTB-XL attention + rhythm strip example ({attention_kind}, {attention_variant})",
     )
 
     fig = plotter.plot(
@@ -218,13 +218,13 @@ def test_attention_map_with_strip_lead(attention_kind: str, attention_variant: s
         show=False,
         information=information,
         stats=stats,
-        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df, strip_attention_df),
-        strip_leads=StripLeadsConfig(ecg_data=strip_df, speed=STRIP_SPEED),
+        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df, rhythm_strip_attention_df),
+        rhythm_strips=RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=RHYTHM_STRIP_SPEED),
     )
 
     try:
         for ext in ("png", "pdf"):
-            path = OUTPUT_ROOT / f"{CONFIGURATION_NAME}-strip-{attention_kind}-{attention_variant}.{ext}"
+            path = OUTPUT_ROOT / f"{CONFIGURATION_NAME}-rhythm-strip-{attention_kind}-{attention_variant}.{ext}"
             save_if_changed(fig, path, ext)
             assert path.exists(), f"Expected output file not found: {path}"
             assert path.stat().st_size > 0, f"Output file is empty: {path}"

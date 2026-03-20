@@ -355,7 +355,7 @@ def template_factory(template: str, ecg_data: ECGDataType, leads_map: LeadsMap |
     -------
     ConfigurationDataType
         Explicit plotting configuration: a list where each element is either a
-        string (full-width strip lead) or a list of strings (leads concatenated
+        string (full-width rhythm strip) or a list of strings (leads concatenated
         within the same row).
 
     Raises

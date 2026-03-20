@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
-from .types import ConfigurationDataType, ECGDataType, StripLeadsConfig
+from .types import ConfigurationDataType, ECGDataType, RhythmStripsConfig
 from .utils.attention import (
     AbstractAttentionMap,
     BackgroundAttentionMap,
@@ -217,7 +217,7 @@ class ECGPlotter:
         information: ECGInformation | None = None,
         stats: ECGStats | None = None,
         attention_map: AbstractAttentionMap | None = None,
-        strip_leads: StripLeadsConfig | None = None,
+        rhythm_strips: RhythmStripsConfig | None = None,
     ) -> Figure:
         """Plot the ECG in ``ecg_data`` using the plotting configuration specified in ``configuration``.
 
@@ -248,10 +248,10 @@ class ECGPlotter:
             When an attention map requests a color scale, ``plot()`` expands the right margin
             automatically to preserve the ECG plotting area. You can disable this by setting
             ``show_colormap=False`` in the AttentionMap initialization.
-        strip_leads : StripLeadsConfig | None, optional
-            Optional strip leads appended after the configuration rows. Every lead
-            present in ``strip_leads.ecg_data`` is plotted as a full-width row
-            showing the entire recording. When ``strip_leads.speed`` differs from
+        rhythm_strips : RhythmStripsConfig | None, optional
+            Optional rhythm strips appended after the configuration rows. Every lead
+            present in ``rhythm_strips.ecg_data`` is plotted as a full-width row
+            showing the entire recording. When ``rhythm_strips.speed`` differs from
             the plotter's speed, those rows use the specified paper speed and the
             figure width is expanded if needed. By default ``None``.
 
@@ -288,38 +288,38 @@ class ECGPlotter:
 
         seq_len = max(len(row[0]) for row in config_rows) if config_rows else df_data.shape[0]
 
-        # --- Strip leads ---
-        strip_rows: list[tuple[np.ndarray, list[str], list[int], list]] = []
-        strip_speed_value: float | None = None
-        strip_tti: float | None = None  # time_to_inches for strip rows
+        # --- Rhythm strips ---
+        rhythm_strip_rows: list[tuple[np.ndarray, list[str], list[int], list]] = []
+        rhythm_strip_speed: float | None = None
+        rhythm_strip_tti: float | None = None  # time_to_inches for rhythm strip rows
 
-        strip_df: pd.DataFrame | None = None
-        if strip_leads is not None:
-            if not isinstance(strip_leads, StripLeadsConfig):
-                raise TypeError(f"strip_leads must be a StripLeadsConfig instance, got {type(strip_leads).__name__}")
-            raw = strip_leads.ecg_data
+        rhythm_strip_df: pd.DataFrame | None = None
+        if rhythm_strips is not None:
+            if not isinstance(rhythm_strips, RhythmStripsConfig):
+                raise TypeError(f"rhythm_strips must be a RhythmStripsConfig instance, got {type(rhythm_strips).__name__}")
+            raw = rhythm_strips.ecg_data
             if isinstance(raw, tuple):
-                strip_df = _numpy_to_dataframe(raw[0], raw[1])
+                rhythm_strip_df = _numpy_to_dataframe(raw[0], raw[1])
             elif isinstance(raw, pd.DataFrame):
-                strip_df = raw
+                rhythm_strip_df = raw
             else:
-                raise ValueError("StripLeadsConfig.ecg_data must be a tuple or DataFrame")
-            if strip_df.shape[1] == 0:
-                raise ValueError("StripLeadsConfig.ecg_data must contain at least one lead (got zero columns)")
-            if strip_df.shape[0] == 0:
-                raise ValueError("StripLeadsConfig.ecg_data must contain at least one sample (got zero rows)")
-            _validate_input_lead_names(list(strip_df.columns))
-            for lead_name in strip_df.columns:
-                strip_rows.append((strip_df[lead_name].values.copy(), [lead_name], [0], []))
+                raise ValueError("RhythmStripsConfig.ecg_data must be a tuple or DataFrame")
+            if rhythm_strip_df.shape[1] == 0:
+                raise ValueError("RhythmStripsConfig.ecg_data must contain at least one lead (got zero columns)")
+            if rhythm_strip_df.shape[0] == 0:
+                raise ValueError("RhythmStripsConfig.ecg_data must contain at least one sample (got zero rows)")
+            _validate_input_lead_names(list(rhythm_strip_df.columns))
+            for lead_name in rhythm_strip_df.columns:
+                rhythm_strip_rows.append((rhythm_strip_df[lead_name].values.copy(), [lead_name], [0], []))
 
-            if strip_leads.speed is not None and abs(strip_leads.speed - self.speed) > 1e-9:
-                strip_speed_value = strip_leads.speed
-                strip_tti = strip_leads.speed / (sampling_frequency * MM_PER_INCH)
+            if rhythm_strips.speed is not None and abs(rhythm_strips.speed - self.speed) > 1e-9:
+                rhythm_strip_speed = rhythm_strips.speed
+                rhythm_strip_tti = rhythm_strips.speed / (sampling_frequency * MM_PER_INCH)
 
         if self.show_time_axis:
-            _validate_time_axis_config([row[3] for row in config_rows], strip_speed_value, self.speed)
+            _validate_time_axis_config([row[3] for row in config_rows], rhythm_strip_speed, self.speed)
 
-        all_rows = list(config_rows) + strip_rows
+        all_rows = list(config_rows) + rhythm_strip_rows
         n_rows = len(all_rows)
 
         # Ensure row_distance * voltage is a multiple of 5mm
@@ -349,8 +349,8 @@ class ECGPlotter:
             adjusted_row_distance,
             print_information=self.print_information,
             right_margin_mm=right_mm,
-            strip_seq_len=strip_df.shape[0] if strip_df is not None else None,
-            strip_speed=strip_speed_value,
+            rhythm_strip_seq_len=rhythm_strip_df.shape[0] if rhythm_strip_df is not None else None,
+            rhythm_strip_speed=rhythm_strip_speed,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
@@ -371,23 +371,23 @@ class ECGPlotter:
             _plot_grid(ax, self.grid_mode, width_inches, height_inches, ctx)
 
         for i, (row_signal, row_leads, row_offsets, _row_segs) in enumerate(all_rows):
-            is_strip = i >= n_config_rows
+            is_rhythm_strip = i >= n_config_rows
             row_attention = None
             row_attention_map = None
-            if not is_strip and prepared_attention is not None:
+            if not is_rhythm_strip and prepared_attention is not None:
                 row_attention = prepared_attention.row_attentions[i]
                 row_attention_map = prepared_attention
-            elif is_strip and prepared_attention is not None:
-                strip_lead_name = row_leads[0]
-                strip_attn = prepared_attention.strip_lead_attentions.get(strip_lead_name)
-                if strip_attn is not None:
-                    if len(strip_attn) == len(row_signal):
-                        row_attention = strip_attn
+            elif is_rhythm_strip and prepared_attention is not None:
+                rhythm_strip_lead = row_leads[0]
+                rhythm_strip_attn = prepared_attention.rhythm_strip_attentions.get(rhythm_strip_lead)
+                if rhythm_strip_attn is not None:
+                    if len(rhythm_strip_attn) == len(row_signal):
+                        row_attention = rhythm_strip_attn
                         row_attention_map = prepared_attention
                     else:
                         warnings.warn(
-                            f"Strip lead {strip_lead_name!r} attention length ({len(strip_attn)}) "
-                            f"does not match strip ECG length ({len(row_signal)}); overlay skipped.",
+                            f"Rhythm strip {rhythm_strip_lead!r} attention length ({len(rhythm_strip_attn)}) "
+                            f"does not match rhythm strip ECG length ({len(row_signal)}); overlay skipped.",
                             UserWarning,
                             stacklevel=2,
                         )
@@ -398,7 +398,7 @@ class ECGPlotter:
                 y_offsets[i],
                 attention_values=row_attention,
                 attention_map=row_attention_map,
-                time_to_inches=strip_tti if is_strip else None,
+                time_to_inches=rhythm_strip_tti if is_rhythm_strip else None,
                 segment_offsets=row_offsets,
             )
 
@@ -453,7 +453,7 @@ class ECGPlotter:
                 last_row_zero_inches,
                 information=information,
                 stats=stats,
-                strip_speed=strip_speed_value,
+                rhythm_strip_speed=rhythm_strip_speed,
             )
 
         if show:

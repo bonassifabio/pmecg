@@ -15,7 +15,7 @@ import pytest
 
 from pmecg import LeadsMap, template_factory
 from pmecg.plot import ECGInformation, ECGPlotter, ECGStats
-from pmecg.types import LeadSegment, StripLeadsConfig
+from pmecg.types import LeadSegment, RhythmStripsConfig
 from pmecg.utils.data import SUPPORTED_TEMPLATES, _apply_configuration, _template_configuration
 from pmecg.utils.plot import (
     LEFT_MARGIN_MM,
@@ -312,13 +312,13 @@ def test_time_axis_raises_on_non_contiguous_segments(ecg_df):
         plotter.plot(ecg_df, config, sampling_frequency=FS, show=False)
 
 
-def test_time_axis_raises_on_strip_speed_mismatch(ecg_df):
-    """A strip lead running at a different speed must raise."""
-    strip_df = ecg_df[["II"]].copy()
-    strip = StripLeadsConfig(ecg_data=strip_df, speed=12.5)
+def test_time_axis_raises_on_rhythm_strip_speed_mismatch(ecg_df):
+    """A rhythm strip running at a different speed must raise."""
+    rhythm_strip_df = ecg_df[["II"]].copy()
+    rhythm_strips = RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=12.5)
     plotter = ECGPlotter(show_time_axis=True, speed=25.0)
     with pytest.raises(ValueError, match="different speed"):
-        plotter.plot(ecg_df, ["I", "II"], strip_leads=strip, sampling_frequency=FS, show=False)
+        plotter.plot(ecg_df, ["I", "II"], rhythm_strips=rhythm_strips, sampling_frequency=FS, show=False)
 
 
 # ── Lead labels ────────────────────────────────────────────────────────────
@@ -964,87 +964,87 @@ def test_plot_rejects_template_string_configuration(ecg_df):
 # ── Strip leads ────────────────────────────────────────────────────────────
 
 
-# Checks that strip_leads appends additional rows to the figure.
-def test_strip_leads_adds_rows(ecg_df):
+# Checks that rhythm_strips appends additional rows to the figure.
+def test_rhythm_strips_adds_rows(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     configuration = [["I", "II", "III"]]
-    strip = StripLeadsConfig(ecg_data=ecg_df[["II", "V1"]])
+    rhythm_strips = RhythmStripsConfig(ecg_data=ecg_df[["II", "V1"]])
     with maybe_warns_divisible(configuration, N_SAMPLES):
-        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=strip)
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, rhythm_strips=rhythm_strips)
     try:
-        # 1 config row + 2 strip rows = 3 signal lines
+        # 1 config row + 2 rhythm strip rows = 3 signal lines
         assert len(_ax(fig).lines) == 3
     finally:
         plt.close(fig)
 
 
-# Checks that strip_leads with default speed produces the same figure width as without.
-def test_strip_leads_default_speed_same_width(ecg_df):
+# Checks that rhythm_strips with default speed produces the same figure width as without.
+def test_rhythm_strips_default_speed_same_width(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     configuration = ["I"]
-    fig_no_strip = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
-    fig_strip = plotter.plot(
-        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]])
+    fig_without = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
+    fig_with = plotter.plot(
+        ecg_df, configuration, sampling_frequency=FS, show=False, rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]])
     )
     try:
-        w_no_strip = fig_no_strip.get_size_inches()[0]
-        w_strip = fig_strip.get_size_inches()[0]
-        assert abs(w_no_strip - w_strip) < 1e-6
+        w_without = fig_without.get_size_inches()[0]
+        w_with = fig_with.get_size_inches()[0]
+        assert abs(w_without - w_with) < 1e-6
         # But height should differ (1 vs 2 rows)
-        h_no_strip = fig_no_strip.get_size_inches()[1]
-        h_strip = fig_strip.get_size_inches()[1]
-        assert h_strip > h_no_strip
+        h_without = fig_without.get_size_inches()[1]
+        h_with = fig_with.get_size_inches()[1]
+        assert h_with > h_without
     finally:
-        plt.close(fig_no_strip)
-        plt.close(fig_strip)
+        plt.close(fig_without)
+        plt.close(fig_with)
 
 
-# Checks that strip_leads with higher speed produces a wider figure.
-def test_strip_leads_higher_speed_wider_figure(ecg_df):
+# Checks that rhythm_strips with higher speed produces a wider figure.
+def test_rhythm_strips_higher_speed_wider_figure(ecg_df):
     plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=False, show_calibration=False)
     configuration = ["I"]
     fig_default = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
-    fig_fast_strip = plotter.plot(
+    fig_fast = plotter.plot(
         ecg_df,
         configuration,
         sampling_frequency=FS,
         show=False,
-        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
     )
     try:
         w_default = fig_default.get_size_inches()[0]
-        w_fast = fig_fast_strip.get_size_inches()[0]
+        w_fast = fig_fast.get_size_inches()[0]
         assert w_fast > w_default
     finally:
         plt.close(fig_default)
-        plt.close(fig_fast_strip)
+        plt.close(fig_fast)
 
 
-# Checks that strip_leads with lower speed does NOT widen the figure.
-def test_strip_leads_lower_speed_no_wider(ecg_df):
+# Checks that rhythm_strips with lower speed does NOT widen the figure.
+def test_rhythm_strips_lower_speed_no_wider(ecg_df):
     plotter = ECGPlotter(speed=50.0, grid_mode=None, print_information=False, show_calibration=False)
     configuration = ["I"]
     fig_default = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False)
-    fig_slow_strip = plotter.plot(
+    fig_slow = plotter.plot(
         ecg_df,
         configuration,
         sampling_frequency=FS,
         show=False,
-        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
     )
     try:
         w_default = fig_default.get_size_inches()[0]
-        w_slow = fig_slow_strip.get_size_inches()[0]
+        w_slow = fig_slow.get_size_inches()[0]
         assert abs(w_default - w_slow) < 1e-6
     finally:
         plt.close(fig_default)
-        plt.close(fig_slow_strip)
+        plt.close(fig_slow)
 
 
-# Checks that strip_leads figure width is computed correctly.
-def test_strip_leads_figure_width_exact(ecg_df):
+# Checks that rhythm_strips figure width is computed correctly.
+def test_rhythm_strips_figure_width_exact(ecg_df):
     main_speed = 25.0
-    strip_speed = 50.0
+    rhythm_strip_speed = 50.0
     plotter = ECGPlotter(speed=main_speed, grid_mode=None, print_information=False, show_calibration=False)
     configuration = ["I"]
     fig = plotter.plot(
@@ -1052,11 +1052,11 @@ def test_strip_leads_figure_width_exact(ecg_df):
         configuration,
         sampling_frequency=FS,
         show=False,
-        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=strip_speed),
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=rhythm_strip_speed),
     )
     try:
-        # Strip is wider: width = strip_seq_len / fs * strip_speed + margins
-        expected_width_mm = N_SAMPLES / FS * strip_speed + LEFT_MARGIN_MM + RIGHT_MARGIN_MM
+        # Rhythm strip is wider: width = seq_len / fs * rhythm_strip_speed + margins
+        expected_width_mm = N_SAMPLES / FS * rhythm_strip_speed + LEFT_MARGIN_MM + RIGHT_MARGIN_MM
         expected_width_inches = expected_width_mm / MM_PER_INCH
         w = fig.get_size_inches()[0]
         assert abs(w - expected_width_inches) < 1e-6
@@ -1064,12 +1064,16 @@ def test_strip_leads_figure_width_exact(ecg_df):
         plt.close(fig)
 
 
-# Checks that strip lead labels appear in the figure.
-def test_strip_leads_labels_shown(ecg_df):
+# Checks that rhythm strip labels appear in the figure.
+def test_rhythm_strips_labels_shown(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_leads_labels=True, show_calibration=False)
     configuration = ["I"]
     fig = plotter.plot(
-        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II", "V3"]])
+        ecg_df,
+        configuration,
+        sampling_frequency=FS,
+        show=False,
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II", "V3"]]),
     )
     try:
         texts = _texts(fig)
@@ -1079,8 +1083,8 @@ def test_strip_leads_labels_shown(ecg_df):
         plt.close(fig)
 
 
-# Checks that strip speed is printed in diagnostics when print_information=True and speed differs.
-def test_strip_speed_in_diagnostics(ecg_df):
+# Checks that rhythm strip speed is printed in diagnostics when print_information=True and speed differs.
+def test_rhythm_strip_speed_in_diagnostics(ecg_df):
     plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
     configuration = ["I"]
     fig = plotter.plot(
@@ -1088,17 +1092,17 @@ def test_strip_speed_in_diagnostics(ecg_df):
         configuration,
         sampling_frequency=FS,
         show=False,
-        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=50.0),
     )
     try:
         combined = " ".join(_texts(fig))
-        assert "Strip speed: 50 mm/s" in combined
+        assert "Rhythm: 50 mm/s" in combined
     finally:
         plt.close(fig)
 
 
-# Checks that strip speed is NOT printed when strip speed equals main speed.
-def test_strip_speed_not_printed_when_same(ecg_df):
+# Checks that rhythm strip speed is NOT printed when it equals the main speed.
+def test_rhythm_strip_speed_not_printed_when_same(ecg_df):
     plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
     configuration = ["I"]
     fig = plotter.plot(
@@ -1106,40 +1110,40 @@ def test_strip_speed_not_printed_when_same(ecg_df):
         configuration,
         sampling_frequency=FS,
         show=False,
-        strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
+        rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=25.0),
     )
     try:
         combined = " ".join(_texts(fig))
-        assert "Strip speed" not in combined
+        assert "Rhythm:" not in combined
     finally:
         plt.close(fig)
 
 
-# Checks that strip speed is NOT printed when strip speed is None.
-def test_strip_speed_not_printed_when_none(ecg_df):
+# Checks that rhythm strip speed is NOT printed when it is None.
+def test_rhythm_strip_speed_not_printed_when_none(ecg_df):
     plotter = ECGPlotter(speed=25.0, grid_mode=None, print_information=True, show_calibration=False)
     configuration = ["I"]
     fig = plotter.plot(
-        ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=ecg_df[["II"]])
+        ecg_df, configuration, sampling_frequency=FS, show=False, rhythm_strips=RhythmStripsConfig(ecg_data=ecg_df[["II"]])
     )
     try:
         combined = " ".join(_texts(fig))
-        assert "Strip speed" not in combined
+        assert "Rhythm:" not in combined
     finally:
         plt.close(fig)
 
 
-# Checks that a non-positive strip speed raises ValueError.
-def test_strip_leads_invalid_speed_raises(ecg_df):
+# Checks that a non-positive rhythm strip speed raises ValueError.
+def test_rhythm_strips_invalid_speed_raises(ecg_df):
     with pytest.raises(ValueError, match="speed"):
-        StripLeadsConfig(ecg_data=ecg_df[["II"]], speed=-1.0)
+        RhythmStripsConfig(ecg_data=ecg_df[["II"]], speed=-1.0)
 
 
-# Checks that strip_leads=None has no effect (backward compat).
-def test_strip_leads_none_no_effect(ecg_df):
+# Checks that rhythm_strips=None has no effect.
+def test_rhythm_strips_none_no_effect(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     configuration = ["I", "II"]
-    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=None)
+    fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, rhythm_strips=None)
     try:
         # 2 signal lines, no extra
         assert len(_ax(fig).lines) == 2
@@ -1147,12 +1151,12 @@ def test_strip_leads_none_no_effect(ecg_df):
         plt.close(fig)
 
 
-# Checks that strip leads row count is correct in the figure height.
-def test_strip_leads_row_count_in_height(ecg_df):
+# Checks that rhythm strip row count is correct in the figure height.
+def test_rhythm_strips_row_count_in_height(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     config_rows = ["I"]
-    strip = StripLeadsConfig(ecg_data=ecg_df[["II", "III"]])
-    fig = plotter.plot(ecg_df, config_rows, sampling_frequency=FS, show=False, strip_leads=strip)
+    rhythm_strips = RhythmStripsConfig(ecg_data=ecg_df[["II", "III"]])
+    fig = plotter.plot(ecg_df, config_rows, sampling_frequency=FS, show=False, rhythm_strips=rhythm_strips)
     try:
         adjusted_rd = _adjust_row_distance(plotter.row_distance, plotter.voltage)
         _, expected_h = _compute_figure_size(3, N_SAMPLES, FS, plotter.speed, plotter.voltage, adjusted_rd)
@@ -1162,29 +1166,29 @@ def test_strip_leads_row_count_in_height(ecg_df):
         plt.close(fig)
 
 
-# Checks that a strip DataFrame with no columns raises a clear error.
-def test_strip_leads_empty_columns_raises(ecg_df):
+# Checks that a rhythm strip DataFrame with no columns raises a clear error.
+def test_rhythm_strips_empty_columns_raises(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     empty_df = ecg_df[[]]  # zero columns
     with pytest.raises(ValueError, match="zero columns"):
-        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=empty_df))
+        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, rhythm_strips=RhythmStripsConfig(ecg_data=empty_df))
 
 
-# Checks that a strip DataFrame with no rows raises a clear error.
-def test_strip_leads_empty_rows_raises(ecg_df):
+# Checks that a rhythm strip DataFrame with no rows raises a clear error.
+def test_rhythm_strips_empty_rows_raises(ecg_df):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     empty_df = ecg_df[["II"]].iloc[0:0]  # zero rows
     with pytest.raises(ValueError, match="zero rows"):
-        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, strip_leads=StripLeadsConfig(ecg_data=empty_df))
+        plotter.plot(ecg_df, ["I"], sampling_frequency=FS, show=False, rhythm_strips=RhythmStripsConfig(ecg_data=empty_df))
 
 
-# Checks that existing template-based plots with strip_leads=None still produce correct output.
+# Checks that template-based plots with rhythm_strips=None still produce correct output.
 @pytest.mark.parametrize("template_key", SUPPORTED_TEMPLATES)
-def test_templates_still_work_with_strip_leads_none(ecg_df, template_key):
+def test_templates_still_work_with_rhythm_strips_none(ecg_df, template_key):
     plotter = ECGPlotter(grid_mode=None, print_information=False, show_calibration=False)
     configuration = _make_template_configuration(template_key, ecg_df)
     with maybe_warns_divisible(configuration, N_SAMPLES):
-        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, strip_leads=None)
+        fig = plotter.plot(ecg_df, configuration, sampling_frequency=FS, show=False, rhythm_strips=None)
     try:
         # Just check it doesn't crash and produces a figure
         assert fig is not None

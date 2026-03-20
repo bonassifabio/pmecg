@@ -66,15 +66,15 @@ class AbstractAttentionMap(ABC):
     show_colormap : bool, optional
         Whether to render the right-side color scale next to the plot.
         By default ``True``.
-    strip_leads_attention : AttentionDataType | None, optional
-        Attention data for strip rows appended via
-        :class:`~pmecg.StripLeadsConfig`. The columns must be named after the
-        strip lead(s); any strip lead whose name is absent from this dataset
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows appended via
+        :class:`~pmecg.RhythmStripsConfig`. The columns must be named after the
+        rhythm strip lead(s); any rhythm strip whose name is absent from this dataset
         will be rendered without an attention overlay. The data is scaled with
         the **same global scale factor** derived from ``data``, so colors are
-        directly comparable between the main layout and the strip rows. The
-        number of samples may differ from ``data`` — a common case is a strip
-        lead that shows more of the recording than the main layout does.
+        directly comparable between the main layout and the rhythm strip rows. The
+        number of samples may differ from ``data`` — a common case is a rhythm
+        strip that shows more of the recording than the main layout does.
         By default ``None``.
     """
 
@@ -84,18 +84,18 @@ class AbstractAttentionMap(ABC):
         *,
         polarity: AttentionPolarity,
         show_colormap: bool = True,
-        strip_leads_attention: AttentionDataType | None = None,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
         self.data = data
         self.polarity = _validate_attention_polarity(polarity)
         if not isinstance(show_colormap, bool):
             raise ValueError("show_colormap must be a boolean")
         self.show_colormap = show_colormap
-        self.strip_leads_attention = strip_leads_attention
+        self.rhythm_strips_attention = rhythm_strips_attention
         self._dataframe: pd.DataFrame | None = None
         self._row_attentions: tuple[np.ndarray, ...] = ()
         self._resolved_range: tuple[float, float] | None = None
-        self._strip_lead_attentions: dict[str, np.ndarray] = {}
+        self._rhythm_strip_attentions: dict[str, np.ndarray] = {}
 
     @property
     def dataframe(self) -> pd.DataFrame:
@@ -129,17 +129,17 @@ class AbstractAttentionMap(ABC):
         return self._resolved_range
 
     @property
-    def strip_lead_attentions(self) -> dict[str, np.ndarray]:
-        """Scaled attention arrays for strip rows, keyed by lead name.
+    def rhythm_strip_attentions(self) -> dict[str, np.ndarray]:
+        """Scaled attention arrays for rhythm strip rows, keyed by lead name.
 
-        Returns an empty dict when :attr:`strip_leads_attention` was not
+        Returns an empty dict when :attr:`rhythm_strips_attention` was not
         provided. Each call returns a shallow copy; the dict structure is
         independent of the internal state. Requires :meth:`prepare` to have
         been called first.
         """
         if self._resolved_range is None:
             raise RuntimeError("Attention map has not been prepared yet")
-        return dict(self._strip_lead_attentions)
+        return dict(self._rhythm_strip_attentions)
 
     @property
     def shows_color_scale(self) -> bool:
@@ -171,13 +171,13 @@ class AbstractAttentionMap(ABC):
             row[0] for row in _apply_configuration(scaled_df, configuration, disconnect_segments=False)
         )
 
-        self._strip_lead_attentions = {}
-        if self.strip_leads_attention is not None:
-            strip_df_raw = _attention_to_dataframe(self.strip_leads_attention)
-            _validate_strip_attention(strip_df_raw, self.polarity)
-            strip_df_scaled = strip_df_raw.astype(float) / scale
-            for col in strip_df_scaled.columns:
-                self._strip_lead_attentions[str(col)] = strip_df_scaled[col].to_numpy(dtype=float)
+        self._rhythm_strip_attentions = {}
+        if self.rhythm_strips_attention is not None:
+            rhythm_strip_df_raw = _attention_to_dataframe(self.rhythm_strips_attention)
+            _validate_rhythm_strip_attention(rhythm_strip_df_raw, self.polarity)
+            rhythm_strip_df_scaled = rhythm_strip_df_raw.astype(float) / scale
+            for col in rhythm_strip_df_scaled.columns:
+                self._rhythm_strip_attentions[str(col)] = rhythm_strip_df_scaled[col].to_numpy(dtype=float)
 
     def colormap_rgba(self, n_steps: int = 256) -> np.ndarray:
         """Build an RGBA image representing the prepared value-to-color mapping."""
@@ -237,8 +237,8 @@ class IntervalAttentionMap(AbstractAttentionMap):
         If set, applies a moving-average with this window size to the
         attention values before rendering. ``None`` disables smoothing.
         By default ``None``.
-    strip_leads_attention : AttentionDataType | None, optional
-        Attention data for strip rows. See :class:`AbstractAttentionMap` for
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
         full documentation. By default ``None``.
     """
 
@@ -252,9 +252,9 @@ class IntervalAttentionMap(AbstractAttentionMap):
         alpha: float = 0.25,
         show_colormap: bool = False,
         smoothing_window: int | None = None,
-        strip_leads_attention: AttentionDataType | None = None,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap, strip_leads_attention=strip_leads_attention)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
         if not isinstance(alpha, (int, float)) or not 0 <= float(alpha) <= 1:
@@ -323,8 +323,8 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         By default, red for positive polarity and blue/red for signed polarity.
     show_colormap : bool, optional
         Whether to show the right-side color scale. By default ``True``.
-    strip_leads_attention : AttentionDataType | None, optional
-        Attention data for strip rows. See :class:`AbstractAttentionMap` for
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
         full documentation. By default ``None``.
     """
 
@@ -335,9 +335,9 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
-        strip_leads_attention: AttentionDataType | None = None,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap, strip_leads_attention=strip_leads_attention)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
@@ -394,8 +394,8 @@ class LineColorAttentionMap(AbstractAttentionMap):
         By default, red for positive polarity and blue/red for signed polarity.
     show_colormap : bool, optional
         Whether to show the right-side color scale. By default ``True``.
-    strip_leads_attention : AttentionDataType | None, optional
-        Attention data for strip rows. See :class:`AbstractAttentionMap` for
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
         full documentation. By default ``None``.
     """
 
@@ -406,9 +406,9 @@ class LineColorAttentionMap(AbstractAttentionMap):
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
-        strip_leads_attention: AttentionDataType | None = None,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap, strip_leads_attention=strip_leads_attention)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
@@ -732,18 +732,18 @@ def _time_range_to_sample_bounds(
     return start_idx, end_idx
 
 
-def _validate_strip_attention(df: pd.DataFrame, polarity: AttentionPolarity) -> None:
-    """Validate strip attention data against polarity constraints.
+def _validate_rhythm_strip_attention(df: pd.DataFrame, polarity: AttentionPolarity) -> None:
+    """Validate rhythm strip attention data against polarity constraints.
 
     Enforces that the data contains at least one finite value and, for
     ``'positive'`` polarity, that no finite value is negative. The sign-span
     constraint of ``'signed'`` polarity is intentionally **not** enforced here
-    because strip attention is allowed to be one-sided (e.g. all-zero outside
+    because rhythm strip attention is allowed to be one-sided (e.g. all-zero outside
     a region of interest).
     """
     lower, _upper = _finite_attention_bounds(df)  # raises if no finite values
     if polarity == "positive" and lower < 0:
-        raise ValueError("Strip leads attention with positive polarity must contain only non-negative values")
+        raise ValueError("Rhythm strip attention with positive polarity must contain only non-negative values")
 
 
 def _scale_attention_dataframe(
@@ -755,7 +755,7 @@ def _scale_attention_dataframe(
     -------
     tuple of (scaled_df, resolved_range, scale)
         ``scale`` is the divisor applied to ``df``; callers that need to apply
-        the same factor to a second array (e.g. strip attention) can use it
+        the same factor to a second array (e.g. rhythm strip attention) can use it
         directly without recomputing.
     """
     lower, upper = _finite_attention_bounds(df)

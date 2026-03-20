@@ -19,7 +19,7 @@ from .plot import (
     attention_map_from_indices_annotations,
     attention_map_from_time_annotations,
 )
-from .types import LeadSegment, StripLeadsConfig
+from .types import LeadSegment, RhythmStripsConfig
 from .utils.data import SUPPORTED_LEADS, LeadsMap, cabrera_factory, expand_to_12_leads, template_factory
 
 __all__ = [
@@ -33,7 +33,7 @@ __all__ = [
     "LeadsMap",
     "LineColorAttentionMap",
     "SUPPORTED_LEADS",
-    "StripLeadsConfig",
+    "RhythmStripsConfig",
     "attention_map_from_indices_annotations",
     "attention_map_from_time_annotations",
     "cabrera_factory",

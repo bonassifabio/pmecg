@@ -26,7 +26,7 @@ most of the recording. Equal splitting via configuration templates cannot expres
 2. **Asynchronous plots.** Suppose all leads were recorded simultaneously for a
 short window, and you want every row to show exactly that same time interval in
 the main grid — while a rhythm strip at the bottom spans a much longer
-duration. With equal splitting the strip lead would be cut to the same length
+duration. With equal splitting the rhythm strip would be cut to the same length
 as the main rows, losing the extra context.
 
 In both cases, replace lead name strings with `LeadSegment` objects. A
@@ -133,21 +133,21 @@ fig = plotter.plot(
 
 ---
 
-## 2. Asynchronous Strip Lead
+## 2. Asynchronous Rhythm Strip
 
-`StripLeadsConfig` accepts its own `ecg_data` DataFrame and an optional
-`speed`, appending one or more full-width rhythm-strip rows below the main
+`RhythmStripsConfig` accepts its own `ecg_data` DataFrame and an optional
+`speed`, appending one or more full-width rhythm strip rows below the main
 layout — completely independent of the main configuration's time range.
 
 Suppose you have recorded:
 
 - 10 seconds for all leads
-- 20 seconds for the strip lead (here, lead II)
+- 20 seconds for the rhythm strip (here, lead II)
 
 And you want to plot:
 
 - the first 5 seconds of all leads in a 2×6 layout
-- the strip lead for the entire 20 seconds
+- the rhythm strip for the entire 20 seconds
 
 You could use the `2x6+1` template, but that produces a synchronous plot
 sharing one time axis. This means that:
@@ -156,18 +156,18 @@ sharing one time axis. This means that:
 - the second column shows the second half of the signals
 
 Instead, use a `LeadSegment`-based main configuration combined with
-`StripLeadsConfig` carrying its own data:
+`RhythmStripsConfig` carrying its own data:
 
 
 ```{code-cell} python
 from pmecg.types import LeadSegment
-from pmecg import StripLeadsConfig
+from pmecg import RhythmStripsConfig
 
 # First 5 s per lead
 half = ecg_df.shape[0] // 2
 
-# Strip lead: 20 s long — obtained by concatenating lead II with itself.
-strip_lead_df = pd.concat([ecg_df[['II']], ecg_df[['II']]], ignore_index=True)
+# Rhythm strip: 20 s long — obtained by concatenating lead II with itself.
+rhythm_strip_df = pd.concat([ecg_df[['II']], ecg_df[['II']]], ignore_index=True)
 
 # Main rows: 2 leads per row, each showing the first 5 s.
 # 2 leads × 2500 samples = 5000 samples per row → 5000/500 Hz × 25 mm/s = 250 mm wide
@@ -198,20 +198,20 @@ main_config = [
     ],
 ]
 
-# Strip lead: 20 s long at half the main speed → 10000/500 Hz × 12.5 mm/s = 250 mm wide.
-# The strip fits in the same page width as the main rows.
-strip = StripLeadsConfig(ecg_data=strip_lead_df, speed=12.5)
+# Rhythm strip: 20 s long at half the main speed → 10000/500 Hz × 12.5 mm/s = 250 mm wide.
+# The rhythm strip fits in the same page width as the main rows.
+rhythm_strips = RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=12.5)
 
 plotter = pmecg.ECGPlotter(grid_mode='cm', speed=25.0, print_information=True)
 fig = plotter.plot(
     ecg_df,
     configuration=main_config,
-    strip_leads=strip,
+    rhythm_strips=rhythm_strips,
     sampling_frequency=fs,
     show=True,
 )
 ```
 
-The strip row carries a `Strip speed: 12.5 mm/s` annotation when
+The rhythm strip row carries a `Rhythm: 12.5 mm/s` annotation when
 `print_information=True`, making the different scale immediately visible to
 the reader.

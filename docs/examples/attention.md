@@ -239,20 +239,20 @@ working with pre-segmented windows), use
 
 ---
 
-## Strip Lead Attention
+## Rhythm Strip Attention
 
-When `strip_leads` is used together with an attention map, strip rows are
+When `rhythm_strips` is used together with an attention map, rhythm strip rows are
 rendered **without** an attention overlay by default. To show attention on a
-strip lead, pass `strip_leads_attention` to the attention map constructor.
+rhythm strip, pass `rhythm_strips_attention` to the attention map constructor.
 
-The strip attention data is scaled with the **same global scale factor** as
+The rhythm strip attention data is scaled with the **same global scale factor** as
 `data`, so colors are directly comparable between the main layout rows and the
-strip rows. The strip data may have a different number of samples than `data` —
-a common case is a strip lead that shows more of the recording (e.g. double
+rhythm strip rows. The rhythm strip data may have a different number of samples than `data` —
+a common case is a rhythm strip that shows more of the recording (e.g. double
 length at half speed).
 
-Any strip lead whose name is **not** present in `strip_leads_attention` is
-rendered without an overlay; strips that are present receive the matching
+Any rhythm strip whose name is **not** present in `rhythm_strips_attention` is
+rendered without an overlay; rhythm strips that are present receive the matching
 attention array.
 
 ```{code-cell} python
@@ -264,33 +264,33 @@ positive_attention_df = pd.DataFrame(
     columns=ecg_df.columns,
 )
 
-# The strip lead (II) shows the recording twice at half speed.
+# The rhythm strip (II) shows the recording twice at half speed.
 ii_values = ecg_df['II'].to_numpy()
-strip_signal = np.concatenate([ii_values, ii_values])
-strip_df = pd.DataFrame({'II': strip_signal})
+rhythm_strip_signal = np.concatenate([ii_values, ii_values])
+rhythm_strip_df = pd.DataFrame({'II': rhythm_strip_signal})
 
-# Build strip attention at the doubled length by concatenating lead's II attention mask to itself.
-strip_attention_df = pd.concat(
-    [positive_attention_df[['II']], positive_attention_df[['II']]], 
-    axis=0, 
+# Build rhythm strip attention at the doubled length by concatenating lead II attention mask to itself.
+rhythm_strip_attention_df = pd.concat(
+    [positive_attention_df[['II']], positive_attention_df[['II']]],
+    axis=0,
     ignore_index=True
 )
 
-interval_map_with_strip = pmecg.IntervalAttentionMap(
+interval_map_with_rhythm_strip = pmecg.IntervalAttentionMap(
     positive_attention_df,
     polarity='positive',
     color='tomato',
     max_attention_mV=0.3,
     alpha=0.4,
-    strip_leads_attention=strip_attention_df,
+    rhythm_strips_attention=rhythm_strip_attention_df,
 )
 
 fig = plotter.plot(
     ecg_df,
     configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
     sampling_frequency=fs,
-    attention_map=interval_map_with_strip,
-    strip_leads=pmecg.StripLeadsConfig(ecg_data=strip_df, speed=plotter.speed / 2),
+    attention_map=interval_map_with_rhythm_strip,
+    rhythm_strips=pmecg.RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=plotter.speed / 2),
     show=True,
 )
 ```

@@ -93,18 +93,18 @@ Example (segment-based)::
 
 
 @dataclass(frozen=True)
-class StripLeadsConfig:
-    """Configuration for strip leads appended after the main layout rows.
+class RhythmStripsConfig:
+    """Configuration for rhythm strip rows appended after the main layout rows.
 
     Parameters
     ----------
     ecg_data : ECGDataType
-        ECG signal source for the strip rows. All leads present in this
-        dataset are plotted as full-width strip rows. Lead names are derived
+        ECG signal source for the rhythm strip rows. All leads present in this
+        dataset are plotted as full-width rhythm strip rows. Lead names are derived
         from the data itself (DataFrame column names, or the lead-name list
         in the tuple form), so no separate ``leads`` argument is needed.
     speed : float | None, optional
-        Paper speed in mm/s for the strip leads. When ``None``, the
+        Paper speed in mm/s for the rhythm strips. When ``None``, the
         plotter's main speed is used. By default ``None``.
     """
 
@@ -113,7 +113,7 @@ class StripLeadsConfig:
 
     def __post_init__(self) -> None:
         if self.speed is not None and self.speed <= 0:
-            raise ValueError("StripLeadsConfig 'speed' must be a positive number")
+            raise ValueError("RhythmStripsConfig 'speed' must be a positive number")
 
 
 AttentionArrayType = Union[np.ndarray, List[np.ndarray]]
@@ -151,5 +151,5 @@ __all__ = [
     "ConfigurationDataType",
     "ECGDataType",
     "LeadSegment",
-    "StripLeadsConfig",
+    "RhythmStripsConfig",
 ]
