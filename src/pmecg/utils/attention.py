@@ -66,6 +66,16 @@ class AbstractAttentionMap(ABC):
     show_colormap : bool, optional
         Whether to render the right-side color scale next to the plot.
         By default ``True``.
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows appended via
+        :class:`~pmecg.RhythmStripsConfig`. The columns must be named after the
+        rhythm strip lead(s); any rhythm strip whose name is absent from this dataset
+        will be rendered without an attention overlay. The data is scaled with
+        the **same global scale factor** derived from ``data``, so colors are
+        directly comparable between the main layout and the rhythm strip rows. The
+        number of samples may differ from ``data`` — a common case is a rhythm
+        strip that shows more of the recording than the main layout does.
+        By default ``None``.
     """
 
     def __init__(
@@ -74,36 +84,62 @@ class AbstractAttentionMap(ABC):
         *,
         polarity: AttentionPolarity,
         show_colormap: bool = True,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
         self.data = data
         self.polarity = _validate_attention_polarity(polarity)
         if not isinstance(show_colormap, bool):
             raise ValueError("show_colormap must be a boolean")
         self.show_colormap = show_colormap
+        self.rhythm_strips_attention = rhythm_strips_attention
         self._dataframe: pd.DataFrame | None = None
         self._row_attentions: tuple[np.ndarray, ...] = ()
         self._resolved_range: tuple[float, float] | None = None
+        self._rhythm_strip_attentions: dict[str, np.ndarray] = {}
 
     @property
     def dataframe(self) -> pd.DataFrame:
-        """Prepared attention values aligned to the ECG leads."""
+        """Scaled attention values as a DataFrame (one column per ECG lead, one row per sample).
+
+        Requires :meth:`prepare` to have been called first (done automatically by
+        :meth:`ECGPlotter.plot <pmecg.ECGPlotter.plot>`).
+        """
         if self._dataframe is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._dataframe
 
     @property
     def row_attentions(self) -> tuple[np.ndarray, ...]:
-        """Prepared attention values segmented to match each ECG row."""
+        """Scaled attention values segmented to match each ECG row.
+
+        Requires :meth:`prepare` to have been called first.
+        """
         if self._resolved_range is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._row_attentions
 
     @property
     def range(self) -> tuple[float, float]:
-        """Resolved global attention range used for rendering."""
+        """Global ``(lower, upper)`` attention range after scaling, used for color mapping.
+
+        Requires :meth:`prepare` to have been called first.
+        """
         if self._resolved_range is None:
             raise RuntimeError("Attention map has not been prepared yet")
         return self._resolved_range
+
+    @property
+    def rhythm_strip_attentions(self) -> dict[str, np.ndarray]:
+        """Scaled attention arrays for rhythm strip rows, keyed by lead name.
+
+        Returns an empty dict when :attr:`rhythm_strips_attention` was not
+        provided. Each call returns a shallow copy; the dict structure is
+        independent of the internal state. Requires :meth:`prepare` to have
+        been called first.
+        """
+        if self._resolved_range is None:
+            raise RuntimeError("Attention map has not been prepared yet")
+        return dict(self._rhythm_strip_attentions)
 
     @property
     def shows_color_scale(self) -> bool:
@@ -116,18 +152,32 @@ class AbstractAttentionMap(ABC):
         n_samples: int,
         configuration: ConfigurationDataType | None,
     ) -> None:
-        """Convert, validate, scale, and segment the attention input for plotting."""
+        """Convert, validate, scale, and segment the attention input for plotting.
+
+        Called automatically by :meth:`ECGPlotter.plot <pmecg.ECGPlotter.plot>` before
+        rendering; you do not normally need to call this manually. After this method
+        returns, the :attr:`dataframe`, :attr:`row_attentions`, and :attr:`range`
+        properties become available.
+        """
         df = _attention_to_dataframe(self.data)
         aligned_df = _align_attention_dataframe(df, ecg_leads)
         if aligned_df.shape[0] != n_samples:
             raise ValueError("Attention data must have the same number of samples as ecg_data")
 
-        scaled_df, resolved_range = _scale_attention_dataframe(aligned_df, self.polarity)
+        scaled_df, resolved_range, scale = _scale_attention_dataframe(aligned_df, self.polarity)
         self._dataframe = scaled_df
         self._resolved_range = resolved_range
         self._row_attentions = tuple(
-            signal for signal, _ in _apply_configuration(scaled_df, configuration, disconnect_segments=False)
+            row[0] for row in _apply_configuration(scaled_df, configuration, disconnect_segments=False)
         )
+
+        self._rhythm_strip_attentions = {}
+        if self.rhythm_strips_attention is not None:
+            rhythm_strip_df_raw = _attention_to_dataframe(self.rhythm_strips_attention)
+            _validate_rhythm_strip_attention(rhythm_strip_df_raw, self.polarity)
+            rhythm_strip_df_scaled = rhythm_strip_df_raw.astype(float) / scale
+            for col in rhythm_strip_df_scaled.columns:
+                self._rhythm_strip_attentions[str(col)] = rhythm_strip_df_scaled[col].to_numpy(dtype=float)
 
     def colormap_rgba(self, n_steps: int = 256) -> np.ndarray:
         """Build an RGBA image representing the prepared value-to-color mapping."""
@@ -187,6 +237,9 @@ class IntervalAttentionMap(AbstractAttentionMap):
         If set, applies a moving-average with this window size to the
         attention values before rendering. ``None`` disables smoothing.
         By default ``None``.
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
+        full documentation. By default ``None``.
     """
 
     def __init__(
@@ -199,8 +252,9 @@ class IntervalAttentionMap(AbstractAttentionMap):
         alpha: float = 0.25,
         show_colormap: bool = False,
         smoothing_window: int | None = None,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         if not isinstance(max_attention_mV, (int, float)) or float(max_attention_mV) < 0:
             raise ValueError("max_attention_mV must be a non-negative number")
         if not isinstance(alpha, (int, float)) or not 0 <= float(alpha) <= 1:
@@ -269,6 +323,9 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         By default, red for positive polarity and blue/red for signed polarity.
     show_colormap : bool, optional
         Whether to show the right-side color scale. By default ``True``.
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
+        full documentation. By default ``None``.
     """
 
     def __init__(
@@ -278,8 +335,9 @@ class BackgroundAttentionMap(AbstractAttentionMap):
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
@@ -335,7 +393,11 @@ class LineColorAttentionMap(AbstractAttentionMap):
         The color(s) used for rendering, following the same semantics as in the base class.
         By default, red for positive polarity and blue/red for signed polarity.
     show_colormap : bool, optional
-        Whether to show the right-side color scale. By default ``True``."""
+        Whether to show the right-side color scale. By default ``True``.
+    rhythm_strips_attention : AttentionDataType | None, optional
+        Attention data for rhythm strip rows. See :class:`AbstractAttentionMap` for
+        full documentation. By default ``None``.
+    """
 
     def __init__(
         self,
@@ -344,8 +406,9 @@ class LineColorAttentionMap(AbstractAttentionMap):
         polarity: AttentionPolarity,
         color: AttentionColorType | None = None,
         show_colormap: bool = True,
+        rhythm_strips_attention: AttentionDataType | None = None,
     ) -> None:
-        super().__init__(data, polarity=polarity, show_colormap=show_colormap)
+        super().__init__(data, polarity=polarity, show_colormap=show_colormap, rhythm_strips_attention=rhythm_strips_attention)
         self.color = _validate_attention_color(color, self.polarity)
 
     def _rgba_for_value(self, value: float) -> tuple[float, ...]:
@@ -401,9 +464,19 @@ def attention_map_from_indices_annotations(
         :class:`pmecg.ECGPlotter`.
     **annotations_by_lead : list[dict]
         Keyword arguments keyed by lead name. Each value must be a list of
-        dictionaries with the keys ``index_range`` and ``attention_value``.
-        ``index_range`` is interpreted as a half-open interval ``[start, end)``
-        over ECG sample indices.
+        dictionaries with two required keys:
+
+        - ``"index_range"`` — a 2-element list or tuple ``[start, end)`` of
+          non-negative integer sample indices (half-open interval).
+        - ``"attention_value"`` — a finite float attention score for that range.
+
+        Example::
+
+            attention_map_from_indices_annotations(
+                ecg_data,
+                II=[{"index_range": [100, 300], "attention_value": 0.8}],
+                V1=[{"index_range": [50, 150], "attention_value": 0.5}],
+            )
 
     Returns
     -------
@@ -456,9 +529,19 @@ def attention_map_from_time_annotations(
         Sampling frequency in Hz.
     **annotations_by_lead : list[dict]
         Keyword arguments keyed by lead name. Each value must be a list of
-        dictionaries with the keys ``time_range`` and ``attention_value``.
-        ``time_range`` is interpreted as a half-open interval ``[start, end)``
-        expressed in seconds.
+        dictionaries with two required keys:
+
+        - ``"time_range"`` — a 2-element list or tuple ``[start, end)`` of
+          non-negative floats in seconds (half-open interval).
+        - ``"attention_value"`` — a finite float attention score for that range.
+
+        Example::
+
+            attention_map_from_time_annotations(
+                ecg_data, fs=500,
+                II=[{"time_range": [0.2, 0.6], "attention_value": 0.8}],
+                V1=[{"time_range": [0.1, 0.3], "attention_value": 0.5}],
+            )
 
     Returns
     -------
@@ -649,8 +732,32 @@ def _time_range_to_sample_bounds(
     return start_idx, end_idx
 
 
-def _scale_attention_dataframe(df: pd.DataFrame, polarity: AttentionPolarity) -> tuple[pd.DataFrame, tuple[float, float]]:
-    """Validate attention polarity and apply a single global scaling factor when needed."""
+def _validate_rhythm_strip_attention(df: pd.DataFrame, polarity: AttentionPolarity) -> None:
+    """Validate rhythm strip attention data against polarity constraints.
+
+    Enforces that the data contains at least one finite value and, for
+    ``'positive'`` polarity, that no finite value is negative. The sign-span
+    constraint of ``'signed'`` polarity is intentionally **not** enforced here
+    because rhythm strip attention is allowed to be one-sided (e.g. all-zero outside
+    a region of interest).
+    """
+    lower, _upper = _finite_attention_bounds(df)  # raises if no finite values
+    if polarity == "positive" and lower < 0:
+        raise ValueError("Rhythm strip attention with positive polarity must contain only non-negative values")
+
+
+def _scale_attention_dataframe(
+    df: pd.DataFrame, polarity: AttentionPolarity
+) -> tuple[pd.DataFrame, tuple[float, float], float]:
+    """Validate attention polarity, apply a global scaling factor, and return it.
+
+    Returns
+    -------
+    tuple of (scaled_df, resolved_range, scale)
+        ``scale`` is the divisor applied to ``df``; callers that need to apply
+        the same factor to a second array (e.g. rhythm strip attention) can use it
+        directly without recomputing.
+    """
     lower, upper = _finite_attention_bounds(df)
 
     if polarity == "positive":
@@ -660,14 +767,14 @@ def _scale_attention_dataframe(df: pd.DataFrame, polarity: AttentionPolarity) ->
             raise ValueError("Positive attention polarity requires at least one value greater than 0")
         scale = max(upper, 1.0)
         scaled_df = df.astype(float) / scale
-        return scaled_df, (0.0, upper / scale)
+        return scaled_df, (0.0, upper / scale), scale
 
     if not (lower < 0 < upper):
         raise ValueError("Signed attention polarity requires values that span both negative and positive")
 
     scale = max(abs(lower), abs(upper), 1.0)
     scaled_df = df.astype(float) / scale
-    return scaled_df, (lower / scale, upper / scale)
+    return scaled_df, (lower / scale, upper / scale), scale
 
 
 def _finite_attention_bounds(df: pd.DataFrame) -> tuple[float, float]:

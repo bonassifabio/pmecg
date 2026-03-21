@@ -30,6 +30,9 @@ record = wfdb.rdrecord('00001_hr', pn_dir='ptb-xl/1.0.3/records500/00000/')
 ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 fs = record.fs
 
+# PTB-XL uses uppercase AVR/AVL/AVF; map them to canonical names (aVR/aVL/aVF).
+leads_map = pmecg.LeadsMap(aVR='AVR', aVL='AVL', aVF='AVF')
+
 n_samples = len(ecg_df)
 ```
 
@@ -81,7 +84,7 @@ interval_map = pmecg.IntervalAttentionMap(
 plotter = pmecg.ECGPlotter(grid_mode='cm')
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=interval_map,
     show=True,
@@ -108,7 +111,7 @@ background_map = pmecg.BackgroundAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=background_map,
     show=True,
@@ -134,7 +137,7 @@ line_map = pmecg.LineColorAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=line_map,
     show=True,
@@ -167,7 +170,7 @@ interval_map_positive = pmecg.IntervalAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
     attention_map=interval_map_positive,
     show=True,
@@ -212,7 +215,7 @@ print(annotation_map_df.describe())
 Pass the DataFrame to any attention map class:
 
 ```{code-cell} python
-annotation_background = pmecg.IntervalAttentionMap(
+annotation_interval = pmecg.IntervalAttentionMap(
     annotation_map_df,
     polarity='positive',   # all values are 0 or positive by construction
     color='tomato',
@@ -221,9 +224,9 @@ annotation_background = pmecg.IntervalAttentionMap(
 
 fig = plotter.plot(
     ecg_df,
-    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=None),
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
     sampling_frequency=fs,
-    attention_map=annotation_background,
+    attention_map=annotation_interval,
     show=True,
 )
 ```
@@ -235,4 +238,62 @@ If you prefer to annotate by **sample index** rather than seconds (e.g. when
 working with pre-segmented windows), use
 `pmecg.attention_map_from_indices_annotations` with `index_range` instead of
 `time_range`. The call signature is otherwise identical.
+```
+
+---
+
+## Rhythm Strip Attention
+
+When `rhythm_strips` is used together with an attention map, rhythm strip rows are
+rendered **without** an attention overlay by default. To show attention on a
+rhythm strip, pass `rhythm_strips_attention` to the attention map constructor.
+
+The rhythm strip attention data is scaled with the **same global scale factor** as
+`data`, so colors are directly comparable between the main layout rows and the
+rhythm strip rows. The rhythm strip data may have a different number of samples than `data` —
+a common case is a rhythm strip that shows more of the recording (e.g. double
+length at half speed).
+
+Any rhythm strip whose name is **not** present in `rhythm_strips_attention` is
+rendered without an overlay; rhythm strips that are present receive the matching
+attention array.
+
+```{code-cell} python
+# ecg_df, fs, and plotter are defined in the Setup section above.
+
+# Build a positive attention array for the main layout (all 12 leads).
+positive_attention_df = pd.DataFrame(
+    np.clip(np.sin(2 * np.pi * np.arange(n_samples)[:, None] / (n_samples / 3) + np.arange(12) * 0.2), 0, None),
+    columns=ecg_df.columns,
+)
+
+# The rhythm strip (II) shows the recording twice at half speed.
+ii_values = ecg_df['II'].to_numpy()
+rhythm_strip_signal = np.concatenate([ii_values, ii_values])
+rhythm_strip_df = pd.DataFrame({'II': rhythm_strip_signal})
+
+# Build rhythm strip attention at the doubled length by concatenating lead II attention mask to itself.
+rhythm_strip_attention_df = pd.concat(
+    [positive_attention_df[['II']], positive_attention_df[['II']]],
+    axis=0,
+    ignore_index=True
+)
+
+interval_map_with_rhythm_strip = pmecg.IntervalAttentionMap(
+    positive_attention_df,
+    polarity='positive',
+    color='tomato',
+    max_attention_mV=0.3,
+    alpha=0.4,
+    rhythm_strips_attention=rhythm_strip_attention_df,
+)
+
+fig = plotter.plot(
+    ecg_df,
+    configuration=pmecg.template_factory('4x3', ecg_df, leads_map=leads_map),
+    sampling_frequency=fs,
+    attention_map=interval_map_with_rhythm_strip,
+    rhythm_strips=pmecg.RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=plotter.speed / 2),
+    show=True,
+)
 ```

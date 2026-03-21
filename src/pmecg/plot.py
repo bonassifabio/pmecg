@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from typing import Never
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 
-from .types import ConfigurationDataType, ECGDataType
+from .types import ConfigurationDataType, ECGDataType, RhythmStripsConfig
 from .utils.attention import (
     AbstractAttentionMap,
     BackgroundAttentionMap,
@@ -36,6 +40,7 @@ from .utils.plot import (
     _plot_row,
     _print_information,
     _RenderContext,
+    _validate_time_axis_config,
 )
 
 __all__ = [
@@ -153,8 +158,11 @@ class ECGPlotter:
         Color of the grid lines. Any matplotlib color string is accepted (e.g. '#f4aaaa',
         'lightgray', 'gray'). By default '#f4aaaa' (light ECG-paper red).
     print_information : bool, optional
-        Whether to print diagnostic parameters (speed, voltage, sampling frequency,
-        leads) and any extra metadata in the corners of the figure, by default False.
+        Whether to print diagnostic parameters (speed, voltage, sampling frequency)
+        and any extra metadata in the corners of the figure, by default False.
+    print_available_leads : bool, optional
+        Whether to include the list of available leads in the diagnostic line.
+        Only has an effect when ``print_information=True``. By default False.
     show_time_axis : bool, optional
         Whether to show the time axis (x-axis ticks and spine) at the bottom of the
         figure, by default False.
@@ -162,6 +170,9 @@ class ECGPlotter:
         Whether to show the calibration pulse in the left margin of each row, by default True.
     show_leads_labels : bool, optional
         Whether to print lead names onto the plot, by default True.
+    show_separators : bool, optional
+        Whether to draw short vertical tick marks at the boundary between adjacent
+        lead columns within each row, by default True.
     disconnect_segments : bool, optional
         If True, the last sample of each segment is set to NaN so that adjacent
         segments are not visually connected in the plot. By default True.
@@ -179,9 +190,11 @@ class ECGPlotter:
         line_width: float = 0.5,
         grid_color: str = "#f4aaaa",
         print_information: bool = False,
+        print_available_leads: bool = False,
         show_time_axis: bool = False,
         show_calibration: bool = True,
         show_leads_labels: bool = True,
+        show_separators: bool = True,
         disconnect_segments: bool = True,
         show_dpi: int = 300,
     ):
@@ -200,9 +213,11 @@ class ECGPlotter:
         self.line_width = line_width
         self.grid_color = grid_color
         self.print_information = print_information
+        self.print_available_leads = print_available_leads
         self.show_time_axis = show_time_axis
         self.show_calibration = show_calibration
         self.show_leads_labels = show_leads_labels
+        self.show_separators = show_separators
         self.disconnect_segments = disconnect_segments
         self.show_dpi = show_dpi
 
@@ -215,6 +230,7 @@ class ECGPlotter:
         information: ECGInformation | None = None,
         stats: ECGStats | None = None,
         attention_map: AbstractAttentionMap | None = None,
+        rhythm_strips: RhythmStripsConfig | None = None,
     ) -> Figure:
         """Plot the ECG in ``ecg_data`` using the plotting configuration specified in ``configuration``.
 
@@ -245,6 +261,12 @@ class ECGPlotter:
             When an attention map requests a color scale, ``plot()`` expands the right margin
             automatically to preserve the ECG plotting area. You can disable this by setting
             ``show_colormap=False`` in the AttentionMap initialization.
+        rhythm_strips : RhythmStripsConfig | None, optional
+            Optional rhythm strips appended after the configuration rows. Every lead
+            present in ``rhythm_strips.ecg_data`` is plotted as a full-width row
+            showing the entire recording. When ``rhythm_strips.speed`` differs from
+            the plotter's speed, those rows use the specified paper speed and the
+            figure width is expanded if needed. By default ``None``.
 
         Returns
         -------
@@ -263,6 +285,9 @@ class ECGPlotter:
 
         _validate_input_lead_names(list(df_data.columns))
 
+        if configuration is not None and len(configuration) == 0:
+            raise ValueError("configuration must not be empty; pass None to use the default single-lead-per-row layout")
+
         resolved_configuration = _resolve_configuration(configuration, list(df_data.columns))
         prepared_attention = attention_map
         if prepared_attention is not None:
@@ -270,15 +295,47 @@ class ECGPlotter:
         reserves_attention_margin = prepared_attention is not None and prepared_attention.shows_color_scale
         shows_attention_color_scale = reserves_attention_margin and prepared_attention.show_colormap
 
-        # Apply the layout configuration → one (signal, leads) pair per row
-        rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
-        n_rows = len(rows)
+        # Apply the layout configuration → one (signal, leads, offsets, segments) 4-tuple per row
+        config_rows = _apply_configuration(df_data, resolved_configuration, self.disconnect_segments)
+        n_config_rows = len(config_rows)
 
-        # Number of samples is the same for every row (the full recording length)
-        seq_len = df_data.shape[0]
+        seq_len = max(len(row[0]) for row in config_rows) if config_rows else df_data.shape[0]
+
+        # --- Rhythm strips ---
+        rhythm_strip_rows: list[tuple[np.ndarray, list[str], list[int], list[Never]]] = []
+        rhythm_strip_speed: float | None = None
+        rhythm_strip_tti: float | None = None  # time_to_inches for rhythm strip rows
+
+        rhythm_strip_df: pd.DataFrame | None = None
+        if rhythm_strips is not None:
+            if not isinstance(rhythm_strips, RhythmStripsConfig):
+                raise TypeError(f"rhythm_strips must be a RhythmStripsConfig instance, got {type(rhythm_strips).__name__}")
+            raw = rhythm_strips.ecg_data
+            if isinstance(raw, tuple):
+                rhythm_strip_df = _numpy_to_dataframe(raw[0], raw[1])
+            elif isinstance(raw, pd.DataFrame):
+                rhythm_strip_df = raw
+            else:
+                raise ValueError("RhythmStripsConfig.ecg_data must be a tuple or DataFrame")
+            if rhythm_strip_df.shape[1] == 0:
+                raise ValueError("RhythmStripsConfig.ecg_data must contain at least one lead (got zero columns)")
+            if rhythm_strip_df.shape[0] == 0:
+                raise ValueError("RhythmStripsConfig.ecg_data must contain at least one sample (got zero rows)")
+            _validate_input_lead_names(list(rhythm_strip_df.columns))
+            for lead_name in rhythm_strip_df.columns:
+                rhythm_strip_rows.append((rhythm_strip_df[lead_name].values.copy(), [lead_name], [0], []))
+
+            if rhythm_strips.speed is not None and abs(rhythm_strips.speed - self.speed) > 1e-9:
+                rhythm_strip_speed = rhythm_strips.speed
+                rhythm_strip_tti = rhythm_strips.speed / (sampling_frequency * MM_PER_INCH)
+
+        if self.show_time_axis:
+            _validate_time_axis_config([row[3] for row in config_rows], rhythm_strip_speed, self.speed)
+
+        all_rows = list(config_rows) + rhythm_strip_rows
+        n_rows = len(all_rows)
 
         # Ensure row_distance * voltage is a multiple of 5mm
-        # (ceil to the closest multiple of 5mm, rounding slightly first to avoid float precision issues)
         adjusted_row_distance = _adjust_row_distance(self.row_distance, self.voltage)
 
         # Conversion factors and per-call render context
@@ -292,9 +349,11 @@ class ECGPlotter:
             voltage=self.voltage,
             show_calibration=self.show_calibration,
             show_leads_labels=self.show_leads_labels,
+            show_separators=self.show_separators,
         )
 
         # Figure dimensions
+        right_mm = RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM
         width_inches, height_inches = _compute_figure_size(
             n_rows,
             seq_len,
@@ -303,7 +362,9 @@ class ECGPlotter:
             self.voltage,
             adjusted_row_distance,
             print_information=self.print_information,
-            right_margin_mm=RIGHT_MARGIN_MM * 2.0 if reserves_attention_margin else RIGHT_MARGIN_MM,
+            right_margin_mm=right_mm,
+            rhythm_strip_seq_len=rhythm_strip_df.shape[0] if rhythm_strip_df is not None else None,
+            rhythm_strip_speed=rhythm_strip_speed,
         )
 
         # Pre-compute the zero-line y position (in inches) for every row
@@ -323,9 +384,37 @@ class ECGPlotter:
         if self.grid_mode is not None:
             _plot_grid(ax, self.grid_mode, width_inches, height_inches, ctx)
 
-        for i, row in enumerate(rows):
-            row_attention = None if prepared_attention is None else prepared_attention.row_attentions[i]
-            _plot_row(ax, row, ctx, y_offsets[i], attention_values=row_attention, attention_map=prepared_attention)
+        for i, (row_signal, row_leads, row_offsets, _row_segs) in enumerate(all_rows):
+            is_rhythm_strip = i >= n_config_rows
+            row_attention = None
+            row_attention_map = None
+            if not is_rhythm_strip and prepared_attention is not None:
+                row_attention = prepared_attention.row_attentions[i]
+                row_attention_map = prepared_attention
+            elif is_rhythm_strip and prepared_attention is not None:
+                rhythm_strip_lead = row_leads[0]
+                rhythm_strip_attn = prepared_attention.rhythm_strip_attentions.get(rhythm_strip_lead)
+                if rhythm_strip_attn is not None:
+                    if len(rhythm_strip_attn) == len(row_signal):
+                        row_attention = rhythm_strip_attn
+                        row_attention_map = prepared_attention
+                    else:
+                        warnings.warn(
+                            f"Rhythm strip {rhythm_strip_lead!r} attention length ({len(rhythm_strip_attn)}) "
+                            f"does not match rhythm strip ECG length ({len(row_signal)}); overlay skipped.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+            _plot_row(
+                ax,
+                (row_signal, row_leads),
+                ctx,
+                y_offsets[i],
+                attention_values=row_attention,
+                attention_map=row_attention_map,
+                time_to_inches=rhythm_strip_tti if is_rhythm_strip else None,
+                segment_offsets=row_offsets,
+            )
 
         first_row_top_inches = y_offsets[0] + ctx.row_distance_inches / 2.0
         last_row_zero_inches = y_offsets[-1]
@@ -345,8 +434,12 @@ class ECGPlotter:
         left_margin_inches = LEFT_MARGIN_MM / MM_PER_INCH
 
         if self.show_time_axis:
+            # When rhythm strips run at the same speed, the figure may be wider than seq_len alone.
+            axis_seq_len = seq_len
+            if rhythm_strip_df is not None and rhythm_strip_speed is None:
+                axis_seq_len = max(seq_len, rhythm_strip_df.shape[0])
             # Choose a sensible tick spacing (0.2 s, rounded to a nice step)
-            total_time_s = seq_len / sampling_frequency
+            total_time_s = axis_seq_len / sampling_frequency
             tick_step_s = _nice_tick_step(total_time_s)
             tick_times_s = np.arange(0, total_time_s + tick_step_s / 2, tick_step_s)
 
@@ -378,6 +471,8 @@ class ECGPlotter:
                 last_row_zero_inches,
                 information=information,
                 stats=stats,
+                rhythm_strip_speed=rhythm_strip_speed,
+                print_available_leads=self.print_available_leads,
             )
 
         if show:

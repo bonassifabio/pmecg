@@ -1,6 +1,6 @@
 [project]
 name = "pmecg"
-version = "0.2.3post3"
+version = "0.3.0"
 description = "Plot ECGs on a paper-like support. Flexible to variable configurations."
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
@@ -68,6 +68,16 @@ build-docs = { cmd = "python -m ipykernel install --sys-prefix --name pmecg-docs
 
 # Use the structured object syntax for cross-environment dependencies
 test-all = { depends-on = [
+    { task = "test-fast", environment = "py38" },
+    { task = "test-fast", environment = "py39" },
+    { task = "test-fast", environment = "py310" },
+    { task = "test-fast", environment = "py311" },
+    { task = "test",      environment = "py312" },
+    { task = "test-fast", environment = "py313" },
+    { task = "test-fast", environment = "py314" }
+] }
+
+test-all-deep = { depends-on = [
     { task = "test", environment = "py38" },
     { task = "test", environment = "py39" },
     { task = "test", environment = "py310" },

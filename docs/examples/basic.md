@@ -36,7 +36,7 @@ ecg_df.head()
 We now have a pandas DataFrame where each column contains all the sampled signal of each lead. Note that the column names match the canonical lead names:
 
 - Limb leads: "I", "II", "III"
-- AV leads: "AVR", "AVL", "AVF"
+- AV leads: "AVR", "AVL", "AVF" (note: PTB-XL uses uppercase; canonical names are "aVR", "aVL", "aVF")
 - Precordial leads: "V1", "V2", "V3", "V4", "V5", "V6"
 
 We can now print the ECG by instantiating `pmecg.ECGPlotter`.

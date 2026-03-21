@@ -18,18 +18,23 @@ import pmecg
 from pmecg import (
     BackgroundAttentionMap,
     IntervalAttentionMap,
+    LeadsMap,
     LineColorAttentionMap,
+    RhythmStripsConfig,
     attention_map_from_time_annotations,
     template_factory,
 )
 from pmecg.plot import ECGInformation, ECGPlotter
 
+# PTB-XL uses uppercase "AVR"/"AVL"/"AVF"; map them to canonical "aVR"/"aVL"/"aVF"
+_PTBXL_LEADS_MAP = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
+
 pytestmark = pytest.mark.integration
 
 ECG_ID = 1
-SPEED = 50
+SPEED = 25  # mm/s, consistent with test_ptbxl_artifacts.py
 SAMPLING_FREQUENCY = 500
-CONFIGURATION_NAME = "4x3"
+CONFIGURATION_NAME = "4x3+1"
 OUTPUT_ROOT = Path("example/artifacts/attention")
 
 
@@ -53,13 +58,21 @@ def _make_unipolar_attention(n_samples: int, lead_names: list[str]) -> pd.DataFr
     return pd.DataFrame(attention, columns=lead_names)
 
 
-def _build_attention_map(kind: str, attention_variant: str, attention_df: pd.DataFrame) -> pmecg.AbstractAttentionMap:
+def _build_attention_map(
+    kind: str,
+    attention_variant: str,
+    attention_df: pd.DataFrame,
+    rhythm_strips_attention: pd.DataFrame | None = None,
+) -> pmecg.AbstractAttentionMap:
     if attention_variant == "signed":
         common_kwargs = {"data": attention_df, "polarity": "signed", "color": ("blue", "red")}
     elif attention_variant == "positive":
         common_kwargs = {"data": attention_df, "polarity": "positive", "color": "red"}
     else:
         raise ValueError(f"Unsupported attention variant: {attention_variant}")
+
+    if rhythm_strips_attention is not None:
+        common_kwargs["rhythm_strips_attention"] = rhythm_strips_attention
 
     if kind == "interval":
         return IntervalAttentionMap(max_attention_mV=0.5, alpha=0.4, **common_kwargs)
@@ -85,7 +98,7 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
     attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
     information = ECGInformation(
         age=metadata["age"],
         sex=metadata["sex"],
@@ -128,8 +141,8 @@ def test_attention_map_plot_saved(attention_kind: str, attention_variant: str, a
         ("line-color", lambda df: LineColorAttentionMap(data=df, polarity="positive", color="red")),
     ],
 )
-def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory) -> None:
-    """Plot a PTB-XL record with a manual annotation on the strip lead (II) from 1.5s to 4.0s."""
+def test_manual_annotation_rhythm_strip(attention_kind: str, attention_map_factory) -> None:
+    """Plot a PTB-XL record with a manual annotation on the rhythm strip (II) from 1.5s to 4.0s."""
     record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
     ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 
@@ -140,7 +153,7 @@ def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory
     )
 
     plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
-    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=None)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
     information = ECGInformation(
         age=metadata["age"],
         sex=metadata["sex"],
@@ -161,6 +174,61 @@ def test_manual_annotation_strip_lead(attention_kind: str, attention_map_factory
     try:
         for ext in ("png", "pdf"):
             path = OUTPUT_ROOT / f"manual-{attention_kind}.{ext}"
+            save_if_changed(fig, path, ext)
+            assert path.exists(), f"Expected output file not found: {path}"
+            assert path.stat().st_size > 0, f"Output file is empty: {path}"
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+
+
+RHYTHM_STRIP_LEAD = "II"
+RHYTHM_STRIP_SPEED = SPEED / 2  # mm/s — half speed; doubled rhythm strip fills the same width
+
+
+@pytest.mark.parametrize(
+    ("attention_variant", "attention_factory"),
+    [
+        ("signed", _make_signed_attention),
+        ("positive", _make_unipolar_attention),
+    ],
+)
+@pytest.mark.parametrize("attention_kind", ["interval", "line-color", "background"])
+def test_attention_map_with_rhythm_strip(attention_kind: str, attention_variant: str, attention_factory) -> None:
+    """Plot a PTB-XL record with attention overlaid on both the main layout and a 2x-long rhythm strip (II at half speed)."""
+    record, metadata, stats = get_ptbxl_data(ecg_id=ECG_ID, fs=SAMPLING_FREQUENCY)
+    ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
+    attention_df = attention_factory(len(ecg_df), list(ecg_df.columns))
+
+    ii_signal = record.p_signal[:, list(record.sig_name).index(RHYTHM_STRIP_LEAD)]
+    rhythm_strip_signal = np.concatenate([ii_signal, ii_signal])
+    rhythm_strip_df = pd.DataFrame({RHYTHM_STRIP_LEAD: rhythm_strip_signal})
+    rhythm_strip_attention_df = attention_factory(len(rhythm_strip_signal), [RHYTHM_STRIP_LEAD])
+
+    plotter = ECGPlotter(grid_mode="cm", speed=SPEED, print_information=True)
+    plot_configuration = template_factory(CONFIGURATION_NAME, ecg_df, leads_map=_PTBXL_LEADS_MAP)
+    information = ECGInformation(
+        age=metadata["age"],
+        sex=metadata["sex"],
+        date=metadata["date"],
+        machine_model=f"PTB-XL attention + rhythm strip example ({attention_kind}, {attention_variant})",
+    )
+
+    fig = plotter.plot(
+        ecg_df,
+        plot_configuration,
+        sampling_frequency=record.fs,
+        show=False,
+        information=information,
+        stats=stats,
+        attention_map=_build_attention_map(attention_kind, attention_variant, attention_df, rhythm_strip_attention_df),
+        rhythm_strips=RhythmStripsConfig(ecg_data=rhythm_strip_df, speed=RHYTHM_STRIP_SPEED),
+    )
+
+    try:
+        for ext in ("png", "pdf"):
+            path = OUTPUT_ROOT / f"{CONFIGURATION_NAME}-rhythm-strip-{attention_kind}-{attention_variant}.{ext}"
             save_if_changed(fig, path, ext)
             assert path.exists(), f"Expected output file not found: {path}"
             assert path.stat().st_size > 0, f"Output file is empty: {path}"

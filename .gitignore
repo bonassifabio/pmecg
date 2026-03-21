@@ -38,3 +38,6 @@ tests/.ptbxl-cache/
 
 # Docs builds
 _build/
+
+# Review files
+review.md

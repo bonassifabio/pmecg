@@ -81,26 +81,36 @@ named templates. The supported templates are:
 | `'1x2'` | I, II |
 | `'1x3'` | I, II, V2 |
 | `'1x4'` | I, II, III, V2 |
-| `'1x6'` | I, II, III, AVR, AVL, AVF |
+| `'1x6'` | I, II, III, aVR, aVL, aVF |
 | `'1x8'` | I, II, V1, V2, V3, V4, V5, V6 |
-| `'1x12'` | I, II, III, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6 |
-| `'2x4'` | 4 rows with two concurrent leads + rhythm strip (II) |
-| `'2x6'` | 6 rows with two concurrent leads + rhythm strip (II) |
-| `'4x3'` | 3 rows with four concurrent leads + rhythm strip (II) |
+| `'1x12'` | I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6 |
+| `'2x4'` | 4 rows with two concurrent leads |
+| `'2x6'` | 6 rows with two concurrent leads |
+| `'4x3'` | 3 rows with four concurrent leads |
+| `'2x4+1'` | 4 rows with two concurrent leads + lead II rhythm strip |
+| `'2x6+1'` | 6 rows with two concurrent leads + lead II rhythm strip |
+| `'4x3+1'` | 3 rows with four concurrent leads + lead II rhythm strip |
+| `'2x4+3'` | 4 rows with two concurrent leads + II, V1, V5 rhythm strips |
+| `'2x6+3'` | 6 rows with two concurrent leads + II, V1, V5 rhythm strips |
+| `'4x3+3'` | 3 rows with four concurrent leads + II, V1, V5 rhythm strips |
 
 Because a template uses canonical lead names (`"I"`, `"II"`, …, `"V6"`) while
 your input DataFrame may use different column names, you must first call
 `pmecg.template_factory` to expand the template into an explicit
 `ConfigurationDataType` that references your actual columns.
 
-When your input already uses canonical names (as is the case with the PTB-XL
-DataFrame above), pass `leads_map=None`:
+PTB-XL records use uppercase `"AVR"`, `"AVL"`, `"AVF"` for the augmented limb
+leads, while pmecg's canonical names are `"aVR"`, `"aVL"`, `"aVF"`. Pass a
+`LeadsMap` to bridge the difference:
 
 ```{code-cell} python
-from pmecg import template_factory
+from pmecg import template_factory, LeadsMap
+
+# Map the three PTB-XL uppercase column names to their canonical forms
+ptbxl_map = LeadsMap(aVR="AVR", aVL="AVL", aVF="AVF")
 
 # Expand the standard 12-lead template
-configuration = template_factory('4x3', ecg_df, leads_map=None)
+configuration = template_factory('4x3', ecg_df, leads_map=ptbxl_map)
 print(configuration)
 ```
 
@@ -123,7 +133,7 @@ ecg_custom = ecg_df.rename(columns={
     'I':   'lead_I',
     'II':  'lead_II',
     'III': 'lead_III',
-    'AVR': '-aVR',
+    'AVR': '-aVR',   # PTB-XL "AVR" → custom column named '-aVR'
     'AVL': 'lead_AVL',
     'AVF': 'lead_AVF',
     'V1':  'chest_1',
@@ -145,9 +155,9 @@ leads_map = pmecg.LeadsMap(
     I='lead_I',
     II='lead_II',
     III='lead_III',
-    AVR='-aVR',
-    AVL='lead_AVL',
-    AVF='lead_AVF',
+    aVR='-aVR',
+    aVL='lead_AVL',
+    aVF='lead_AVF',
     V1='chest_1',
     V2='chest_2',
     V3='chest_3',
