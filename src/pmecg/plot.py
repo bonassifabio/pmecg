@@ -158,8 +158,11 @@ class ECGPlotter:
         Color of the grid lines. Any matplotlib color string is accepted (e.g. '#f4aaaa',
         'lightgray', 'gray'). By default '#f4aaaa' (light ECG-paper red).
     print_information : bool, optional
-        Whether to print diagnostic parameters (speed, voltage, sampling frequency,
-        leads) and any extra metadata in the corners of the figure, by default False.
+        Whether to print diagnostic parameters (speed, voltage, sampling frequency)
+        and any extra metadata in the corners of the figure, by default False.
+    print_available_leads : bool, optional
+        Whether to include the list of available leads in the diagnostic line.
+        Only has an effect when ``print_information=True``. By default False.
     show_time_axis : bool, optional
         Whether to show the time axis (x-axis ticks and spine) at the bottom of the
         figure, by default False.
@@ -187,6 +190,7 @@ class ECGPlotter:
         line_width: float = 0.5,
         grid_color: str = "#f4aaaa",
         print_information: bool = False,
+        print_available_leads: bool = False,
         show_time_axis: bool = False,
         show_calibration: bool = True,
         show_leads_labels: bool = True,
@@ -209,6 +213,7 @@ class ECGPlotter:
         self.line_width = line_width
         self.grid_color = grid_color
         self.print_information = print_information
+        self.print_available_leads = print_available_leads
         self.show_time_axis = show_time_axis
         self.show_calibration = show_calibration
         self.show_leads_labels = show_leads_labels
@@ -467,6 +472,7 @@ class ECGPlotter:
                 information=information,
                 stats=stats,
                 rhythm_strip_speed=rhythm_strip_speed,
+                print_available_leads=self.print_available_leads,
             )
 
         if show:

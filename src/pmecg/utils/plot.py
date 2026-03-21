@@ -520,11 +520,12 @@ def _print_information(
     information=None,
     stats=None,
     rhythm_strip_speed: float | None = None,
+    print_available_leads: bool = False,
 ) -> None:
     """Annotate the figure with diagnostic parameters and optional patient information.
 
-    Diagnostics (speed, voltage, sampling frequency, leads) are placed in the
-    bottom-left corner.  The machine model (from ``information.machine_model``) is
+    Diagnostics (speed, voltage, sampling frequency, and optionally leads) are placed
+    in the bottom-left corner.  The machine model (from ``information.machine_model``) is
     placed in the bottom-right corner.  Patient/recording metadata (hospital,
     patient name, date) are placed just above the first ECG row, in the top margin.
     ECG statistics (from ``stats``) are placed in the top-right corner, arranged
@@ -558,6 +559,8 @@ def _print_information(
     rhythm_strip_speed : float | None, optional
         Paper speed in mm/s for rhythm strip rows, printed in the diagnostics line
         as ``Rhythm: X mm/s`` when it differs from the main speed. By default ``None``.
+    print_available_leads : bool, optional
+        When True, append ``Leads: <names>`` to the diagnostics line. By default False.
     """
     font = {"fontsize": 7, "fontfamily": "monospace"}
     x_left = LEFT_MARGIN_MM / MM_PER_INCH
@@ -570,14 +573,12 @@ def _print_information(
     line_height = 0.13  # inches between lines
 
     # --- Bottom-left: diagnostics (single line) ---
-    leads_str = " ".join(leads)
     rhythm_strip_speed_part = f"   Rhythm: {rhythm_strip_speed:g} mm/s" if rhythm_strip_speed is not None else ""
     diag_line = (
-        f"Speed: {ctx.speed:g} mm/s{rhythm_strip_speed_part}   "
-        f"Voltage: {ctx.voltage:g} mm/mV   "
-        f"Freq: {sampling_frequency:g} Hz   "
-        f"Leads: {leads_str}"
+        f"Speed: {ctx.speed:g} mm/s{rhythm_strip_speed_part}   Voltage: {ctx.voltage:g} mm/mV   Freq: {sampling_frequency:g} Hz"
     )
+    if print_available_leads:
+        diag_line += f"   Leads: {' '.join(leads)}"
     if information is not None and getattr(information, "filter", None):
         diag_line += f"   Filter: {information.filter}"
 

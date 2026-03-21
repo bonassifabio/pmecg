@@ -439,7 +439,7 @@ def test_template_labels_use_custom_names(custom_ecg_df):
 
 # Checks that the diagnostic metadata line lists the caller's custom lead names rather than conventional ones.
 def test_diagnostics_leads_use_custom_names(custom_ecg_df):
-    plotter = ECGPlotter(grid_mode=None, print_information=True, show_leads_labels=False)
+    plotter = ECGPlotter(grid_mode=None, print_information=True, print_available_leads=True, show_leads_labels=False)
     configuration = _make_template_configuration("4x3", custom_ecg_df, CUSTOM_LEADS_MAP)
     fig = plotter.plot(
         custom_ecg_df,
