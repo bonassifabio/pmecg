@@ -30,9 +30,6 @@ SUPPORTED_TEMPLATES = (
     "4x3+3",
 )
 
-# Cabrera limb leads: the order in which the 6 limb leads appear in Cabrera format.
-_CABRERA_LIMB_ORDER = ("aVL", "I", "-aVR", "II", "aVF", "III")
-
 # Maps each standard limb lead name (as it appears in a built-in template)
 # to the Cabrera-format lead name that should replace it.
 _CABRERA_SUBSTITUTION: dict[str, str] = {
@@ -578,8 +575,9 @@ def expand_to_12_leads(
     Parameters
     ----------
     ecg_data : ECGDataType
-        ECG input. Must contain at least leads I, II, V1–V6; additional leads
-        or columns are allowed and will be preserved unchanged.
+        ECG input. Must contain at least leads I, II, V1–V6. Non-standard leads
+        or extra columns are not carried through; the output contains only the
+        12 standard leads in canonical order.
         When the input uses non-canonical column names, supply ``leads_map`` to
         map them to canonical names.
     leads_map : LeadsMap | None, optional

@@ -33,7 +33,7 @@ ecg_df = pd.DataFrame(record.p_signal, columns=record.sig_name)
 fs = record.fs
 ```
 
-There are two ways to plot an ECG in the cabrera format - we will explore both of them.
+There are two ways to plot an ECG in the Cabrera format - we will explore both of them.
 
 ## Approach 1. Use `pmecg.cabrera_factory`
 
@@ -60,7 +60,7 @@ fig = plotter.plot(cabrera_data, configuration=cabrera_config, sampling_frequenc
 ```
 
 ```{admonition} Note
-:class: Note
+:class: note
 
 `cabrera_factory` supports all templates that include all six limb leads:
 `'1x6'`, `'1x12'`, `'2x6'`, `'4x3'`, `'2x6+1'`, `'4x3+1'`, `'2x6+3'`, and
@@ -77,7 +77,7 @@ If your `leads_map` maps `aVR` to a name starting with `'-'`
 
 ## Approach 2. Manual
 
-The same can result can be achieved by manually changing the sign of the aVR column, and passing a custom configuration to the `ECGPlotter.plot()`:
+The same result can be achieved by manually changing the sign of the aVR column and passing a custom configuration to `ECGPlotter.plot()`:
 
 ```{code-cell} python
 cabrera_df = ecg_df.copy()
