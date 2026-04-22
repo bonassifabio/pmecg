@@ -19,7 +19,7 @@
 
 | Interval attention | Line-color attention | Background attention |
 |:---:|:---:|:---:|
-| ![Interval attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-interval-signed.png) | ![Line-color attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-line-color-signed.png) | ![Background attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3-background-signed.png) |
+| ![Interval attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3+1-interval-signed.png) | ![Line-color attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3+1-line-color-signed.png) | ![Background attention ECG](https://raw.githubusercontent.com/bonassifabio/pmecg/main/example/artifacts/attention/4x3+1-background-signed.png) |
 
 ## Installation
 
